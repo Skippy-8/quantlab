@@ -13,10 +13,12 @@ dependencies = [
     "duckdb>=1.0",
     "requests>=2.31",
     "pytz>=2024.1",
+    "plotly>=5.20",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
-dashboard = ["streamlit>=1.35", "plotly>=5.20"]
+dashboard = ["streamlit>=1.45"]
 equities = ["yfinance>=0.2.40"]
 dev = ["pytest>=8", "ruff>=0.5"]
 
@@ -46,4 +48,5 @@ ignore = ["E501"]
 known-first-party = ["quantlab"]
 
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["quantlab.engine.EngineConfig", "EngineConfig"]
+extend-immutable-calls = ["quantlab.engine.EngineConfig", "EngineConfig", "quantlab.portfolio.Sizing", "Sizing",
+                          "quantlab.engine.ExitRules", "ExitRules"]
