@@ -3,9 +3,8 @@
 <p align="center"><b>Backtests that can't lie to you.</b></p>
 
 <p align="center">
-A financial data lake, an automated data-quality pipeline, a deterministic execution engine and a
-multiple-testing governance layer,<br/>
-surfaced through a 13-page analytics dashboard and a real-time Node.js console. Python · SQL · TypeScript.
+An end-to-end financial data platform and quantitative research engine:<br/>
+Hive-partitioned DuckDB/Parquet data lake · Automated data-quality &amp; schema profiling · Deterministic execution · Multiple-testing governance · 13-page analytics suite &amp; live Node.js console.
 </p>
 
 <p align="center">
@@ -20,10 +19,10 @@ surfaced through a 13-page analytics dashboard and a real-time Node.js console. 
 
 <p align="center">
   <a href="https://skippy-8.github.io/quantlab/"><b>Documentation</b></a> ·
-  <a href="#quickstart">Quickstart</a> ·
+  <a href="#why-quantlab-exists">Why It Exists</a> ·
   <a href="#architecture">Architecture</a> ·
-  <a href="#pre-flight-data-qc">Data &amp; QC</a> ·
-  <a href="#whole-search-permutation-null">Validation</a> ·
+  <a href="#verification-in-practice">Data QC &amp; Validation</a> ·
+  <a href="#quickstart">Quickstart</a> ·
   <a href="#cli-reference">CLI Reference</a> ·
   <a href="console/">Live Console</a>
 </p>
@@ -32,44 +31,36 @@ surfaced through a 13-page analytics dashboard and a real-time Node.js console. 
 
 ## Why quantlab exists
 
-A research result is only as credible as the weakest step that produced it. Standard pipelines
-fail in four places, and each failure inflates the result without leaving a trace. quantlab turns
-each one into an enforced invariant: a run that violates it is refused, not reported.
+A financial analysis or backtest is only as credible as the weakest step that produced it. Standard
+research pipelines fail silently in four places: they ingest unverified feeds, leak future data across
+timestamps, assume unrealistic fills, and report the winner of hundreds of parameter trials as if it
+were the only idea tested.
 
-**1. Data integrity and point-in-time isolation.** Every series is graded before analysis for gaps,
-duplicate timestamps, impossible bars (high below low, close outside the range, non-positive prices),
-one-bar outliers beyond *k* robust standard deviations, moves that match an unadjusted split
-ratio, and empty values, with a schema and per-column completeness profile that applies to any
-table, prices or not. SEC Form 3/4/5 filings are stored keyed on acceptance time, so a query as of any timestamp
-returns only what was public then.
+**quantlab** turns each failure mode into an enforced invariant: a pipeline or strategy run that
+violates one is refused rather than reported.
 
-**2. Temporal and cross-sectional causality.** Before any P&L is computed, every strategy is replayed
-on truncated histories and on a reversed symbol order. If a single signal differs, `evaluate` raises
-`LookaheadError` naming the symbol and timestamp of the first signal that changed.
-
-**3. Microstructure-aware execution.** All strategies share one execution model. Limit orders fill
-only when price trades *through* them, within a time-to-live, with a taker fallback. Fees, perpetual
-funding, short borrow and futures roll costs are charged. Stops, profit-target ladders, breakeven and
-trailing exits support partial fills, and a gap through a stop fills at the open. Options are marked
-at mid, quarter and natural. The engine draws no random numbers, so identical inputs produce
-identical fills.
-
-**4. Multiple-testing governance and holdout sealing.** A central registry counts every distinct
-variant per study, and the significance bar scales with that count as `max(2, √(2 ln K))`. Parameter
-searches are tested against a whole-search null, and results are deflated (DSR, PBO by CSCV, White's
-Reality Check, Hansen's SPA). The final holdout is sealed by a SHA-256 manifest and opens once per
-pre-registered hypothesis.
-
-| | Standard pipeline | quantlab invariant |
+| Pillar | Standard pipeline | quantlab invariant |
 |---|---|---|
-| **Data** | ingested as delivered | graded per symbol before use; anomalies surfaced for review, never silently dropped |
-| **Lookahead** | reviewed by eye, if at all | truncated-history and symbol-reorder replay; any changed signal raises `LookaheadError` |
-| **Limit fills** | the bar touched the price | price traded through the limit within its TTL; taker fallback on expiry |
-| **Costs** | a flat fee, if any | maker/taker fees, funding, short borrow, roll cost, assumed half-spread |
-| **Parameter search** | the best cell is reported | the best cell must beat the best cell of the same search on signal-shifted data |
-| **Significance** | t > 2 | `max(2, √(2 ln K))` over K distinct trials, plus a deflated Sharpe over all of them |
-| **Holdout** | a final split, often reused | walk-forward, then a hash-sealed vault that opens once per pre-registered spec |
-| **Options P&L** | marked at the mid | the same trades at mid, quarter and natural, isolating the cost of the spread |
+| **1. Data integrity and point-in-time isolation** | Raw feeds ingested as delivered; tables trusted without schema or null audits. | `quantlab quality` grades every symbol for gaps, duplicate timestamps, impossible bars (`high < low`, non-positive prices), empty values, robust-SD outliers and unadjusted splits, plus a schema and per-column completeness profile for any table or SQL query. SEC Form 3/4/5 filings are keyed on acceptance time, so a historical query returns only what was public then. |
+| **2. Temporal and cross-sectional causality** | Lookahead reviewed by eye, if at all. | Every strategy is replayed on truncated histories and on a reversed symbol order before any P&L is scored. If a single past signal changes, `evaluate()` raises `LookaheadError` naming the symbol and timestamp. |
+| **3. Microstructure-aware execution** | Limit orders fill whenever a bar touches the price; flat or zero costs. | One deterministic execution model (it draws no random numbers): limit orders fill only when price trades *through* them within a time-to-live, with a taker fallback on expiry; fills are against the bid and ask (an assumed half-spread, flagged in the summary, when the data has no quotes). Maker/taker fees, perpetual funding, short borrow and futures rolls are charged; target ladders fill partially, stops gap to the open, and options are marked at mid, quarter and natural. |
+| **4. Multiple-testing governance and vault sealing** | The best parameter cell is reported against a static t > 2; holdouts are reused. | A central registry counts every distinct variant (K) per study and scales the significance bar as `max(2, √(2 ln K))`. Grid searches face a whole-search permutation null, backed by DSR, PBO (CSCV), White's Reality Check, Hansen's SPA and walk-forward stitching; the final holdout is sealed by a SHA-256 manifest and opens once per pre-registered spec. |
+
+## Platform highlights
+
+- **Read-only DuckDB SQL lake and multi-source ingestion.** FRED macro series, rate-limited SEC
+  EDGAR Form 3/4/5 filings, equities and ETFs (Yahoo), crypto perpetuals (Binance, CCXT) and
+  schema-detected CSV/Parquet files land in Hive-partitioned Parquet. It is queried through DuckDB
+  views (`quantlab sql`, `Lake.sql()`) that accept one `SELECT` at a time, refuse every write
+  statement, and give sealed vault datasets no view at all.
+- **Self-service YAML rules and reproducible tearsheets.** Strategy rules read as expressions
+  (`rsi(14) < 30 and close > sma(200)`), are validated against an `ast` node allow-list, and are
+  versioned as YAML, so someone who does not write Python can author and review them. Any run exports
+  as a standalone HTML tearsheet, and every saved run records its code version and data fingerprint.
+- **Observability and operations.** A strict TypeScript / Node.js 22 / React 19 console streams
+  trials, runs and job heartbeats over WebSockets and reads run artefacts through DuckDB embedded in
+  Node. Freshness checks (`OK` / `RUNNING` / `FAILING` / `STALE`) exit non-zero for cron and systemd
+  alerting.
 
 ## Architecture
 
@@ -112,23 +103,24 @@ flowchart LR
 
 | Layer | Core modules | Capabilities and invariants |
 |---|---|---|
-| **Ingestion and columnar lake** | `quantlab/data`, `quantlab/sec` | Hive-partitioned Parquet with one DuckDB SQL view per dataset, queried read-only (a single SELECT per call; sealed vault datasets get no view); atomic, idempotent per-symbol upserts (a re-run load changes nothing); CSV/Parquet import with column detection; per-symbol quality grades plus a schema and completeness profile for any table. EDGAR client under a shared 8 req/s token bucket with `Retry-After` backoff; filings keyed on `(accession, owner, line)` and queried on acceptance time |
-| **Execution and portfolio** | `engine.py`, `portfolio.py`, `futures.py`, `options/`, `events.py` | Through-the-limit fills with TTL and taker fallback; funding, borrow, roll and fee accounting; stop, target-ladder, breakeven, trailing and time exits with partial fills. Sizing by fixed notional, fixed fraction, volatility target or risk per trade, under leverage, position and margin limits. Continuous futures (calendar or volume roll, ratio or difference adjustment); 13 option structures on Black-Scholes or ThetaData chains; market-model event studies with date-clustered t |
-| **Declarative rule engine** | `rules.py`, `indicators.py` | Strategies written as expressions, parsed with Python's `ast` against an allow-list of node types, serialised to YAML. 35 indicators, each computed per symbol from past data only |
-| **Statistical governance and vault** | `stats/`, `validation.py`, `research/` | Distinct-trial registry with a rising bar; PSR and DSR; Holm and BHY; Harvey-Liu haircut; MinBTL; whole-search permutation nulls; PBO by CSCV; White's Reality Check and Hansen's SPA on a stationary bootstrap; block Monte Carlo; walk-forward; pre-registration by spec hash; the one-shot vault |
-| **Analytics UI and reporting** | `dashboard/`, `report/` | 13 Streamlit pages in light and dark themes; standalone HTML tearsheets; saved runs that record a code version and a data fingerprint |
-| **Real-time console and operations** | `console/`, `monitor/`, `deploy/` | Fastify and WebSocket service in strict TypeScript; DuckDB embedded in Node; React 19 front end. Job heartbeats with OK / RUNNING / FAILING / STALE states; a health check that exits non-zero for cron and systemd alerting; example systemd timers |
+| **Ingestion and columnar lake** | `quantlab/data`, `quantlab/sec` | **Lake and SQL:** Hive-partitioned Parquet with one read-only DuckDB view per dataset (a single `SELECT` per call; sealed vault datasets get no view) and atomic, idempotent per-symbol upserts.<br/>**QC and regulatory ingestion:** per-symbol bar grading plus a schema and completeness profile for any table. The EDGAR client runs under a shared 8 req/s token bucket with `Retry-After` backoff; filings are keyed on `(accession, owner, line)` and queried by acceptance time. |
+| **Execution and portfolio** | `engine.py`, `portfolio.py`, `futures.py`, `options/`, `events.py` | **Execution:** through-the-limit fills with TTL and taker fallback; fee, funding, borrow and roll accounting; stop, target-ladder, breakeven, trailing and time exits with partial fills.<br/>**Sizing and asset classes:** fixed notional, fixed fraction, volatility target or risk per trade, under leverage, position and margin limits. Continuous futures, 13 option structures (Black-Scholes or ThetaData chains), and market-model event studies with date-clustered t. |
+| **Declarative rule engine** | `rules.py`, `indicators.py` | **AST allow-list:** expressions parsed with Python's `ast` against a fixed set of node types and serialised to YAML, over 35 indicators computed per symbol from past data only. |
+| **Statistical governance and vault** | `stats/`, `validation.py`, `research/` | **Overfitting controls:** distinct-trial registry (K) with a rising bar; PSR, DSR, Holm, BHY, Harvey-Liu haircut and MinBTL; whole-search permutation nulls; PBO by CSCV; White's Reality Check and Hansen's SPA on a stationary bootstrap; block Monte Carlo; walk-forward; spec-hash pre-registration and the one-shot SHA-256 vault. |
+| **Analytics UI and reporting** | `dashboard/`, `report/` | **Decision surfaces:** 13 Streamlit pages in light and dark themes, interactive Plotly charts, standalone HTML tearsheets, and saved runs stamped with code version and data fingerprint. |
+| **Real-time console and operations** | `console/`, `monitor/`, `deploy/` | **Live monitoring:** Fastify and WebSocket server in strict TypeScript, DuckDB embedded in Node, React 19 front end. Job heartbeats (`OK` / `RUNNING` / `FAILING` / `STALE`), health checks that exit non-zero for cron and systemd alerting, and example systemd timers. |
 
 ## Verification in practice
 
-Two runs against public data. Both outputs come from the CLI; the quality report's two tables are
-condensed into one, with timestamps shortened to dates.
+Two runs against public data, from the CLI. The quality report's two tables are condensed into one,
+with timestamps shortened to dates.
 
 ### Pre-flight data QC
 
-Ten years of the 10-year Treasury yield and the unemployment rate, from FRED:
+Ten years of the 10-year Treasury yield (`DGS10`) and the civilian unemployment rate (`UNRATE`), from
+FRED:
 
-```
+```text
 $ quantlab fetch fred DGS10 UNRATE --start 2015-01
 $ quantlab quality fred/series
 symbol  bars       first        last  grade  outlier
@@ -141,25 +133,25 @@ UNRATE  outlier  2020-04-01  +236.4% in one bar (34 robust sd)
 
 Every flag falls in March or April 2020, at 17 to 34 robust standard deviations. These are genuine
 macro shocks, not bad prints. The grader reports them with their dates and magnitudes and removes
-nothing, so whether a study includes the COVID-19 regime stays an explicit analyst decision instead
-of a side effect of ingestion.
+nothing, so whether a study includes the COVID-19 regime remains an explicit analyst decision rather
+than a silent side effect of ingestion.
 
 ### Whole-search permutation null
 
 A six-cell Donchian breakout grid on six Binance perpetuals, hourly bars, calendar year 2024:
 
-```
+```text
 $ quantlab search donchian_breakout --data binance/klines_1h --study trend --perm 200
 best cell window=100,exit_window=20: day_t 1.33
 whole-search permutation p = 0.488 over 200 shuffles (null best median 1.29)
 study 'trend': K = 6, bar 2.00
 ```
 
-The best cell reaches t = 1.33. The null re-runs the entire six-cell search 200 times with each
-symbol's signal circularly shifted against its prices. That breaks any real timing while keeping the
-signal's autocorrelation. The best null cell matches or beats 1.33 in 48.8% of runs (median 1.29), so
-the result is what a search of this size produces by chance. It is recorded in the registry as one of
-K = 6 trials against a bar of 2.00.
+The winning cell reaches t = 1.33. The null re-runs the entire six-cell search 200 times with each
+symbol's signal circularly shifted against its prices, which breaks any real timing while preserving
+the signal's autocorrelation. The best null cell matches or beats 1.33 in **48.8%** of runs (median
+1.29), so the result is what a search of this size produces by chance. It is logged in the registry as
+one of K = 6 trials against a bar of 2.00.
 
 ## Interface and observability
 
@@ -180,39 +172,35 @@ K = 6 trials against a bar of 2.00.
 
 ## Quickstart
 
-**Install** (Python 3.11+):
+**1. Install and load demo data** (Python 3.11+):
 
 ```bash
 git clone https://github.com/Skippy-8/quantlab && cd quantlab
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dashboard,equities,dev]"     # or: make install (adds the docs extra and the console)
-quantlab fetch synthetic                  # demo data into the lake, no network needed
+quantlab fetch synthetic                        # demo data into the lake, no network needed
 ```
 
-**Examples**: three runnable scripts in [`examples/`](examples/), offline by default:
-macro regimes in SQL with pre-flight QC, a point-in-time insider event study against a placebo,
-and the governance path from `LookaheadError` to a sealed, one-shot holdout.
+**2. Run the end-to-end examples.** Three scripts in [`examples/`](examples/), offline by default:
+macro regimes in SQL with pre-flight QC, a point-in-time SEC insider event study against a placebo,
+and the governance path from `LookaheadError` to a sealed holdout vault.
 
 ```bash
-python examples/01_macro_sql_and_qc.py --live    # FRED + Yahoo; omit --live for synthetic data
-make help                                        # test, lint, contract, docs, dashboard, console ...
+python examples/01_macro_sql_and_qc.py --live  # FRED + Yahoo; omit --live for synthetic data
+make help                                      # test, lint, contract, docs, dashboard, console ...
 ```
 
-**Analytics dashboard**, 13 pages:
+**3. Launch the analytics dashboard or the live console:**
 
 ```bash
-streamlit run dashboard/app.py
-```
+streamlit run dashboard/app.py                  # the 13-page Streamlit dashboard
 
-**Live console**, Node.js 22 + React 19:
-
-```bash
-cd console && npm install && npm run build
+cd console && npm install && npm run build      # the Node.js 22 + React 19 console
 QUANTLAB_HOME=../.quantlab QUANTLAB_LAKE=../data/lake QUANTLAB_CLI=../.venv/bin/quantlab npm start
 # → http://127.0.0.1:8787
 ```
 
-**Python API**:
+**4. Query with SQL and evaluate a strategy in Python:**
 
 ```python
 from quantlab import evaluate
@@ -244,18 +232,18 @@ Tearsheet.from_results(res, pf, title="RSI dip on ETFs").save("rsi_dip.html")
 | `fetch` | `quantlab fetch fred DGS10 CPIAUCSL UNRATE --start 2010-01` | Ingest from `synthetic`, `binance` (with `--funding`), `yahoo`, `fred` or `ccxt` (`--exchange`) |
 | `sec sync` | `quantlab sec sync AAPL MSFT NVDA --since 2022-01-01` | Backfill Forms 3/4/5 into the point-in-time store (needs `SEC_USER_AGENT`) |
 | `import` | `quantlab import prices.csv --source broker --dataset daily` | Load any CSV/Parquet; columns detected, times stored in UTC |
-| `sql` | `quantlab sql "SELECT symbol, avg(close) FROM yahoo__daily GROUP BY 1" --format csv` | One read-only query over the lake views and, as `sec.*`, the insider store; `--export` to CSV, Parquet or JSON; `--tables` lists what can be queried |
+| `sql` | `quantlab sql "SELECT symbol, avg(close) FROM yahoo__daily GROUP BY 1" --format csv` | One read-only query over the lake views and the `sec.*` insider tables; `--export` to CSV, Parquet or JSON; `--tables` lists what can be queried |
 | `quality` | `quantlab quality yahoo/daily` | Grade each symbol, list every finding, and profile the schema and column completeness; `--sql` profiles any query result, such as `sec.insider_transactions` |
-| `catalog` | `quantlab catalog` | Datasets, rows, symbols and date ranges in the lake |
+| `catalog` | `quantlab catalog` | Datasets, row counts, symbols and date ranges in the lake |
 | `backtest` | `quantlab backtest donchian_breakout --data yahoo/daily --study etf --tearsheet report.html` | One leak-checked run, recorded in the study and judged against its bar; `--rules file.yaml` for a rule strategy, `--save` to keep it |
-| `search` | `quantlab search bollinger_reversion --data yahoo/daily --study etf --perm 200` | Sweep a template's grid, record every cell, run the whole-search permutation null |
-| `walkforward` | `quantlab walkforward donchian_breakout --data yahoo/daily --train 750 --test 250` | Rolling out-of-sample selection and evaluation |
-| `options` | `quantlab options iron_condor --days 250 --every 5 --hold 14` | Backtest an option structure, priced at mid, quarter and natural |
-| `registry` | `quantlab registry --study etf --json` | Trials, distinct K and the current bar per study |
-| `prereg` | `quantlab prereg etf prereg/etf-trend.md` | Register a written spec, by hash, before running it |
-| `vault` | `quantlab vault seal data/vault` | Seal, verify or audit the out-of-sample vault |
-| `monitor` | `quantlab monitor --job fetch_fred=24 --data yahoo/daily=36` | Job and data freshness; exits non-zero on anything not OK |
-| `strategies` | `quantlab strategies --json` | The built-in templates, their defaults and grids |
+| `search` | `quantlab search bollinger_reversion --data yahoo/daily --study etf --perm 200` | Sweep a template's grid, record every cell, and run the whole-search permutation null |
+| `walkforward` | `quantlab walkforward donchian_breakout --data yahoo/daily --train 750 --test 250` | Rolling out-of-sample parameter selection and stitched evaluation |
+| `options` | `quantlab options iron_condor --days 250 --every 5 --hold 14` | Backtest a multi-leg option structure, priced at mid, quarter and natural |
+| `registry` | `quantlab registry --study etf --json` | Recorded trials, distinct K and the current bar per study |
+| `prereg` | `quantlab prereg etf prereg/etf-trend.md` | Register a written spec by its SHA-256 hash before running it |
+| `vault` | `quantlab vault seal data/vault` | Seal, verify or audit the one-shot out-of-sample vault |
+| `monitor` | `quantlab monitor --job fetch_fred=24 --data yahoo/daily=36` | Job heartbeats and data freshness; exits non-zero on anything not OK |
+| `strategies` | `quantlab strategies --json` | Built-in templates, their defaults and parameter grids |
 
 ## Deep dives
 
@@ -276,7 +264,7 @@ Tearsheet.from_results(res, pf, title="RSI dip on ETFs").save("rsi_dip.html")
 | Markets | **Options Lab** | Structure P&L on synthetic or ThetaData chains, and how much of it the spread consumes |
 | | **Event Studies** | Cumulative abnormal returns around uploaded, earnings or insider events; trade them through the engine |
 | | **Insider Filings** | Open-market purchases by role, cluster buys, a point-in-time view |
-| Data | **Data Manager** | Catalog and coverage, file import, public fetchers, quality grades, continuous futures, SQL console |
+| Data | **Data Manager** | Catalog and coverage, file import, public fetchers, quality grades and completeness, continuous futures, SQL console |
 | Governance | **Research Registry** | Each trial against the bar it faces as K grows; pre-registration |
 | | **Monitoring** | Job heartbeats and data freshness |
 
@@ -327,8 +315,9 @@ Indicators: `adx` `atr` `bb_lower` `bb_pct` `bb_upper` `cci` `donchian_high` `do
 - **Integrity:** lookahead and symbol-leak detection on deliberately leaking strategies; vault
   sealing and one-shot runs; idempotent lake upserts; the SEC parser on raw ownership XML.
 - **SQL and QC:** cross-dataset joins and window functions checked against pandas; every write path
-  (COPY, CREATE, INSERT, DROP, ATTACH, multiple statements) refused; sealed datasets unreachable from
-  SQL; the SEC store attached read-only; completeness and schema profiling on non-price tables.
+  (`COPY`, `CREATE`, `INSERT`, `DROP`, `ATTACH`, multiple statements) refused; sealed datasets
+  unreachable from SQL; the SEC store attached read-only; completeness and schema profiling on
+  non-price tables.
 - **Dashboard:** every Streamlit page rendered headlessly with its main action executed.
 - **Examples:** all three scripts run offline and their key claims are asserted.
 - **Console:** byte-offset tailing (partial lines, multi-byte characters split across reads, file
@@ -346,7 +335,7 @@ the documentation with `mkdocs --strict` and publishes it to GitHub Pages.
 
 ## Repository layout
 
-```
+```text
 quantlab/
   engine.py         execution model, exits, causality checks, summary statistics
   portfolio.py      dollar equity, sizing methods, leverage and margin limits, contract specs
