@@ -123,7 +123,15 @@ with tabs[3]:
         src, dset = ds.split("/", 1)
         rep = quality.report(lake.read(src, dset))
         st.dataframe(rep["symbols"], hide_index=True, width="stretch",
-                     column_config={"grade": st.column_config.TextColumn("Grade", help="A clean · D needs fixing")})
+                     column_config={"grade": st.column_config.TextColumn("Grade", help="A clean · D needs fixing"),
+                                    "complete_pct": st.column_config.NumberColumn(
+                                        "Complete OHLC %", format="%.2f",
+                                        help="Share of bars with open, high, low and close all present")})
+        with st.expander("Schema and column completeness"):
+            st.caption(" · ".join(f"{k.replace('_', ' ')} **{v}**" for k, v in rep["schema"].items()))
+            st.dataframe(rep["columns"].astype({"min": str, "max": str}), hide_index=True, width="stretch",
+                         column_config={"non_null_pct": st.column_config.ProgressColumn(
+                             "Non-null %", min_value=0, max_value=100, format="%.1f%%")})
         if len(rep["findings"]):
             st.dataframe(rep["findings"], hide_index=True, width="stretch", height=300)
         else:

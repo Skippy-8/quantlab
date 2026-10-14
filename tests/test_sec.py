@@ -74,3 +74,12 @@ def test_client_refuses_to_run_without_a_contact(monkeypatch):
     with pytest.raises(RuntimeError):
         client.user_agent()
     assert market_session(pd.Timestamp("2025-03-05T15:00:00Z")) == "REGULAR"   # 10:00 New York
+
+
+def test_purchases_have_a_total_order_when_filings_share_an_acceptance_time(tmp_path):
+    store = InsiderStore(tmp_path / "s.duckdb")
+    same = "2025-03-05T21:15:00Z"
+    for i, tk in enumerate(["ZZZ", "AAA", "MMM"]):
+        r = parse(XML, f"0001234567-25-00000{i}", "9999999", tk.lower(), same, "4", "2025-03-05")
+        store.write(r, f"0001234567-25-00000{i}", tk, "4")
+    assert list(store.purchases()["ticker"]) == ["AAA", "MMM", "ZZZ"]

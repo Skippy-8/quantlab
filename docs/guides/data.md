@@ -7,16 +7,33 @@ data/lake/<source>/<dataset>/symbol=<SYMBOL>/data.parquet
 ```
 
 One file per symbol, rewritten on update and de-duplicated on `(symbol, timestamp)`, so re-running a
-fetch is idempotent. DuckDB reads it in place:
+fetch is idempotent.
+
+## SQL
+
+DuckDB reads the lake in place, with one view per dataset named `<source>__<dataset>`. The insider
+store, when present, is attached read-only as schema `sec`.
+
+```bash
+quantlab sql --tables
+quantlab sql "SELECT symbol, round(100 * min(close / peak - 1), 1) AS max_dd_pct
+              FROM (SELECT symbol, close, max(close) OVER (PARTITION BY symbol ORDER BY timestamp) AS peak
+                    FROM yahoo__daily) GROUP BY 1" --format table
+quantlab sql "SELECT * FROM fred__series WHERE symbol = 'DGS10'" --export dgs10.parquet
+```
 
 ```python
 from quantlab.data import Lake
-con = Lake().duckdb()       # one view per dataset: <source>__<dataset>
-con.execute("SELECT symbol, avg(quote_volume) FROM binance__klines_1h GROUP BY symbol").df()
+Lake().sql("SELECT symbol, count(*) FROM yahoo__daily GROUP BY 1")      # a DataFrame
 ```
 
-Every read goes through the vault guard, so a sealed directory cannot be read through the lake by
-accident.
+Queries are read-only by construction: `Lake.sql` parses the text first and accepts exactly one
+`SELECT` (or `WITH ... SELECT`). `COPY`, `CREATE`, `INSERT`, `ATTACH`, `PRAGMA` and multi-statement
+input are refused before anything runs.
+
+Every read goes through the vault guard. `Lake.read` raises on a sealed directory, and a sealed
+dataset gets no SQL view (and is left out of the catalog) unless a registered vault run is open, so
+SQL cannot be used to look at the holdout either.
 
 ## Sources
 
@@ -43,3 +60,19 @@ quantlab quality binance/klines_1h      # exits non-zero if any symbol grades C 
 | Bad bars | high < low, close outside the range, non-positive prices |
 | Outliers | one-bar returns beyond 12 robust (MAD) standard deviations |
 | Suspected splits | a one-bar jump close to a split ratio that does not revert: unadjusted splits look like crashes |
+| Missing | a bar with an empty open, high, low or close (NaN passes every comparison, so the checks above miss it) |
+
+Grades: **A** no findings; **B** up to three non-severe findings; **C** more; **D** any bad bar,
+duplicate or suspected split. Each symbol also reports `complete_pct`, its share of bars with all four
+prices present.
+
+### Schema and completeness, for any table
+
+`quality.profile(df)` needs no particular columns. It reports the row and column counts, symbols,
+time range and median step, and per column the type, non-null share, null count, distinct values
+and range. The CLI applies it to any query result, which makes it a check for filings and macro
+tables as much as for prices:
+
+```bash
+quantlab quality --sql "SELECT * FROM sec.insider_transactions"
+```

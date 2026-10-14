@@ -83,7 +83,7 @@ class InsiderStore:
             FROM insider_transactions
             WHERE transaction_code = 'P' AND acquired_disposed = 'A' {plan}
             GROUP BY ticker, owner_cik, accession_number
-            ORDER BY public_at""")
+            ORDER BY public_at, ticker, owner_cik, accession_number""")    # total order: ties are common
 
     def summary(self) -> dict:
         n, f, t, lo, hi = self.con.execute(

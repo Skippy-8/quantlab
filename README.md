@@ -11,7 +11,7 @@ surfaced through a 13-page analytics dashboard and a real-time Node.js console. 
 <p align="center">
   <a href="https://github.com/Skippy-8/quantlab/actions/workflows/ci.yml"><img src="https://github.com/Skippy-8/quantlab/actions/workflows/ci.yml/badge.svg" alt="ci"/></a>
   <a href="https://skippy-8.github.io/quantlab/"><img src="https://img.shields.io/badge/docs-live-3550c8" alt="docs"/></a>
-  <img src="https://img.shields.io/badge/tests-221-14805e" alt="221 tests"/>
+  <img src="https://img.shields.io/badge/tests-239-14805e" alt="239 tests"/>
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-3550c8" alt="python 3.11 | 3.12"/>
   <img src="https://img.shields.io/badge/node-22-3550c8" alt="node 22"/>
   <img src="https://img.shields.io/badge/typescript-strict-3550c8" alt="typescript strict"/>
@@ -38,8 +38,9 @@ each one into an enforced invariant: a run that violates it is refused, not repo
 
 **1. Data integrity and point-in-time isolation.** Every series is graded before analysis for gaps,
 duplicate timestamps, impossible bars (high below low, close outside the range, non-positive prices),
-one-bar outliers beyond *k* robust standard deviations, and moves that match an unadjusted split
-ratio. SEC Form 3/4/5 filings are stored keyed on acceptance time, so a query as of any timestamp
+one-bar outliers beyond *k* robust standard deviations, moves that match an unadjusted split
+ratio, and empty values, with a schema and per-column completeness profile that applies to any
+table, prices or not. SEC Form 3/4/5 filings are stored keyed on acceptance time, so a query as of any timestamp
 returns only what was public then.
 
 **2. Temporal and cross-sectional causality.** Before any P&L is computed, every strategy is replayed
@@ -111,7 +112,7 @@ flowchart LR
 
 | Layer | Core modules | Capabilities and invariants |
 |---|---|---|
-| **Ingestion and columnar lake** | `quantlab/data`, `quantlab/sec` | Hive-partitioned Parquet with one DuckDB SQL view per dataset; atomic, idempotent per-symbol upserts (a re-run load changes nothing); CSV/Parquet import with column detection; per-symbol quality grades. EDGAR client under a shared 8 req/s token bucket with `Retry-After` backoff; filings keyed on `(accession, owner, line)` and queried on acceptance time |
+| **Ingestion and columnar lake** | `quantlab/data`, `quantlab/sec` | Hive-partitioned Parquet with one DuckDB SQL view per dataset, queried read-only (a single SELECT per call; sealed vault datasets get no view); atomic, idempotent per-symbol upserts (a re-run load changes nothing); CSV/Parquet import with column detection; per-symbol quality grades plus a schema and completeness profile for any table. EDGAR client under a shared 8 req/s token bucket with `Retry-After` backoff; filings keyed on `(accession, owner, line)` and queried on acceptance time |
 | **Execution and portfolio** | `engine.py`, `portfolio.py`, `futures.py`, `options/`, `events.py` | Through-the-limit fills with TTL and taker fallback; funding, borrow, roll and fee accounting; stop, target-ladder, breakeven, trailing and time exits with partial fills. Sizing by fixed notional, fixed fraction, volatility target or risk per trade, under leverage, position and margin limits. Continuous futures (calendar or volume roll, ratio or difference adjustment); 13 option structures on Black-Scholes or ThetaData chains; market-model event studies with date-clustered t |
 | **Declarative rule engine** | `rules.py`, `indicators.py` | Strategies written as expressions, parsed with Python's `ast` against an allow-list of node types, serialised to YAML. 35 indicators, each computed per symbol from past data only |
 | **Statistical governance and vault** | `stats/`, `validation.py`, `research/` | Distinct-trial registry with a rising bar; PSR and DSR; Holm and BHY; Harvey-Liu haircut; MinBTL; whole-search permutation nulls; PBO by CSCV; White's Reality Check and Hansen's SPA on a stationary bootstrap; block Monte Carlo; walk-forward; pre-registration by spec hash; the one-shot vault |
@@ -184,8 +185,17 @@ K = 6 trials against a bar of 2.00.
 ```bash
 git clone https://github.com/Skippy-8/quantlab && cd quantlab
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dashboard,equities,dev]"
+pip install -e ".[dashboard,equities,dev]"     # or: make install (adds the docs extra and the console)
 quantlab fetch synthetic                  # demo data into the lake, no network needed
+```
+
+**Examples**: three runnable scripts in [`examples/`](examples/), offline by default:
+macro regimes in SQL with pre-flight QC, a point-in-time insider event study against a placebo,
+and the governance path from `LookaheadError` to a sealed, one-shot holdout.
+
+```bash
+python examples/01_macro_sql_and_qc.py --live    # FRED + Yahoo; omit --live for synthetic data
+make help                                        # test, lint, contract, docs, dashboard, console ...
 ```
 
 **Analytics dashboard**, 13 pages:
@@ -212,14 +222,19 @@ from quantlab.portfolio import Sizing, simulate
 from quantlab.report.tearsheet import Tearsheet
 from quantlab.rules import RuleStrategy
 
-df = Lake().read("binance", "klines_1h")
-rule = RuleStrategy("RSI dip", long_entry="rsi(14) < 30 and close > sma(200)", long_exit="rsi(14) > 55")
-cfg = EngineConfig(exits=ExitRules(unit="atr", stop_loss=2.5,
-                                   take_profits=((2, 0.5), (4, 0.5)), breakeven_after=1))
+lake = Lake()                                   # after: quantlab fetch yahoo SPY TLT GLD --start 2015-01-01
+vol = lake.sql("""
+    SELECT symbol, round(100 * stddev(r) * sqrt(252), 1) AS ann_vol_pct
+    FROM (SELECT symbol, close / lag(close) OVER (PARTITION BY symbol ORDER BY timestamp) - 1 AS r
+          FROM yahoo__daily)
+    GROUP BY symbol ORDER BY ann_vol_pct DESC""")
 
-res = evaluate(rule.signal_fn(), df, cfg)       # raises LookaheadError if the rule peeks
-pf = simulate(res, Sizing(method="vol_target", target_vol=0.15, max_leverage=2))
-Tearsheet.from_results(res, pf, title="RSI dip").save("rsi_dip.html")
+rule = RuleStrategy("RSI dip", long_entry="rsi(14) < 30 and close > sma(200)", long_exit="rsi(14) > 55")
+cfg = EngineConfig(days_per_year=252, exits=ExitRules(unit="atr", stop_loss=2.5,
+                                                      take_profits=((2, 0.5), (4, 0.5)), breakeven_after=1))
+res = evaluate(rule.signal_fn(), lake.read("yahoo", "daily"), cfg)   # raises LookaheadError if the rule peeks
+pf = simulate(res, Sizing(method="vol_target", target_vol=0.10, max_leverage=1))
+Tearsheet.from_results(res, pf, title="RSI dip on ETFs").save("rsi_dip.html")
 ```
 
 ## CLI reference
@@ -229,7 +244,8 @@ Tearsheet.from_results(res, pf, title="RSI dip").save("rsi_dip.html")
 | `fetch` | `quantlab fetch fred DGS10 CPIAUCSL UNRATE --start 2010-01` | Ingest from `synthetic`, `binance` (with `--funding`), `yahoo`, `fred` or `ccxt` (`--exchange`) |
 | `sec sync` | `quantlab sec sync AAPL MSFT NVDA --since 2022-01-01` | Backfill Forms 3/4/5 into the point-in-time store (needs `SEC_USER_AGENT`) |
 | `import` | `quantlab import prices.csv --source broker --dataset daily` | Load any CSV/Parquet; columns detected, times stored in UTC |
-| `quality` | `quantlab quality yahoo/daily` | Grade each symbol and list every finding |
+| `sql` | `quantlab sql "SELECT symbol, avg(close) FROM yahoo__daily GROUP BY 1" --format csv` | One read-only query over the lake views and, as `sec.*`, the insider store; `--export` to CSV, Parquet or JSON; `--tables` lists what can be queried |
+| `quality` | `quantlab quality yahoo/daily` | Grade each symbol, list every finding, and profile the schema and column completeness; `--sql` profiles any query result, such as `sec.insider_transactions` |
 | `catalog` | `quantlab catalog` | Datasets, rows, symbols and date ranges in the lake |
 | `backtest` | `quantlab backtest donchian_breakout --data yahoo/daily --study etf --tearsheet report.html` | One leak-checked run, recorded in the study and judged against its bar; `--rules file.yaml` for a rule strategy, `--save` to keep it |
 | `search` | `quantlab search bollinger_reversion --data yahoo/daily --study etf --perm 200` | Sweep a template's grid, record every cell, run the whole-search permutation null |
@@ -301,7 +317,7 @@ Indicators: `adx` `atr` `bb_lower` `bb_pct` `bb_upper` `cci` `donchian_high` `do
 
 <br/>
 
-221 tests: 175 in pytest and 46 in Vitest.
+239 tests: 193 in pytest and 46 in Vitest.
 
 - **Execution:** fill rules (through-the-limit, TTL expiry, taker fallback), exits with partial fills
   and gap-through-stop handling, stop-before-target ordering within a bar, borrow and roll costs;
@@ -310,7 +326,11 @@ Indicators: `adx` `atr` `bb_lower` `bb_pct` `bb_upper` `cci` `donchian_high` `do
   bar; the Reality Check rejection rate under a true null across seeds.
 - **Integrity:** lookahead and symbol-leak detection on deliberately leaking strategies; vault
   sealing and one-shot runs; idempotent lake upserts; the SEC parser on raw ownership XML.
+- **SQL and QC:** cross-dataset joins and window functions checked against pandas; every write path
+  (COPY, CREATE, INSERT, DROP, ATTACH, multiple statements) refused; sealed datasets unreachable from
+  SQL; the SEC store attached read-only; completeness and schema profiling on non-price tables.
 - **Dashboard:** every Streamlit page rendered headlessly with its main action executed.
+- **Examples:** all three scripts run offline and their key claims are asserted.
 - **Console:** byte-offset tailing (partial lines, multi-byte characters split across reads, file
   rotation), the registry and heartbeat state, argument allow-listing against injection attempts,
   the job lifecycle (timeouts, crashes, queueing), and the HTTP and WebSocket API against a fixture
@@ -340,14 +360,16 @@ quantlab/
   stats/            DSR, PSR, Holm/BHY, Harvey-Liu, MinBTL, bootstrap, permutation nulls
   research/         trial registry, pre-registration, sealed vault, splits, saved runs
   report/           metrics, Plotly charts, HTML tearsheets
-  data/             the lake, importers, quality grading, FRED/Yahoo/Binance/CCXT sources
+  data/             the lake and its read-only SQL, importers, quality grading and profiling, sources
   sec/              EDGAR client, Form 3/4/5 parser, point-in-time store
   monitor/          heartbeats and health checks
+examples/           three runnable end-to-end scripts (macro SQL + QC, SEC event study, governance)
 dashboard/          Streamlit application, 13 pages
 console/            Node.js + TypeScript service, React front end, Vitest suite
 docs/               MkDocs Material documentation site
 deploy/             example systemd services and timers
 tests/              pytest suite
+Makefile            install, test, lint, contract, docs, dashboard and console targets
 ```
 
 ## References

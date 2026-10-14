@@ -11,6 +11,8 @@
     quantlab walkforward sma_crossover --train 90 --test 30
     quantlab import prices.csv --source custom --dataset daily      # any CSV/Parquet, columns detected
     quantlab quality binance/klines_1h                             # gaps, bad bars, outliers, splits
+    quantlab quality --sql "SELECT * FROM sec.insider_transactions"   # schema + completeness of any table
+    quantlab sql "SELECT symbol, count(*) FROM yahoo__daily GROUP BY 1"  # read-only SQL over the lake
     quantlab options iron_condor --days 250 --every 5 --hold 14     # synthetic chain demo
     quantlab search bollinger_reversion --data synthetic/bars --study demo --perm 100
     quantlab registry [--study demo] [--json]     # trials, K and the current pass bar
@@ -163,13 +165,57 @@ def cmd_import(a):
     print(Lake().write(a.source, a.dataset, df))
 
 
+def _sec_db():
+    from quantlab.sec.store import default_path
+    return default_path()
+
+
 def cmd_quality(a):
     from quantlab.data import quality
-    rep = quality.report(_load(a.data))
+    if not a.data and not a.sql:
+        raise SystemExit("give a dataset (source/dataset) or --sql QUERY")
+    df = Lake().sql(a.sql, _sec_db()) if a.sql else _load(a.data)
+    bars = {"symbol", "timestamp", "open", "high", "low", "close"} <= set(df.columns)
+    rep = quality.report(df) if bars else quality.profile(df)
+    s = rep["schema"]
+    print("schema: " + ", ".join(f"{k} {v}" for k, v in s.items()))
+    print(rep["columns"].to_string(index=False))
+    if not bars:
+        return 0                       # not price bars: completeness and schema only
+    print()
     print(rep["symbols"].to_string(index=False))
     if len(rep["findings"]):
         print(rep["findings"].head(a.limit).to_string(index=False))
     return 0 if set(rep["symbols"]["grade"]) <= {"A", "B"} else 1
+
+
+def cmd_sql(a):
+    import duckdb
+    lake = Lake()
+    if a.tables or not a.query:
+        print(lake.tables(_sec_db()).to_string(index=False))
+        return 0
+    try:
+        df = lake.sql(a.query, _sec_db())
+    except (ValueError, duckdb.Error) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if a.export:
+        out = a.export.lower()
+        if out.endswith(".parquet"):
+            df.to_parquet(a.export, index=False)
+        elif out.endswith(".json"):
+            df.to_json(a.export, orient="records", date_format="iso", indent=1)
+        else:
+            df.to_csv(a.export, index=False)
+        print(f"{len(df):,} rows -> {a.export}", file=sys.stderr)
+    elif a.format == "csv":
+        df.to_csv(sys.stdout, index=False)
+    elif a.format == "json":
+        print(df.to_json(orient="records", date_format="iso"))
+    else:
+        print(df.to_string(index=False, max_rows=a.max_rows) if len(df) else "(no rows)")
+    return 0
 
 
 def cmd_options(a):
@@ -314,8 +360,17 @@ def main(argv=None) -> int:
     p.add_argument("--symbol", default=None, help="for files without a symbol column")
     p.set_defaults(fn=cmd_import)
 
+    p = sub.add_parser("sql", help="read-only SQL over the lake (and the SEC store, as sec.*)")
+    p.add_argument("query", nargs="?", help="one SELECT / WITH query; views are named <source>__<dataset>")
+    p.add_argument("--format", choices=["table", "csv", "json"], default="table")
+    p.add_argument("--export", help="write the result to a .csv, .parquet or .json file")
+    p.add_argument("--max-rows", type=int, default=60, help="rows shown in table format")
+    p.add_argument("--tables", action="store_true", help="list the views and tables a query can use")
+    p.set_defaults(fn=cmd_sql)
+
     p = sub.add_parser("quality")
-    p.add_argument("data", help="source/dataset")
+    p.add_argument("data", nargs="?", help="source/dataset")
+    p.add_argument("--sql", help="profile the result of a read-only query instead (any table, e.g. sec.*)")
     p.add_argument("--limit", type=int, default=40)
     p.set_defaults(fn=cmd_quality)
 

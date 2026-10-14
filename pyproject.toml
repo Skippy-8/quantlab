@@ -36,6 +36,7 @@ packages = ["quantlab"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = ["slow: runs a full example script (deselect with -m 'not slow')"]
 
 [tool.ruff]
 line-length = 110
@@ -46,7 +47,7 @@ select = ["E", "F", "W", "I", "B"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["quantlab"]
+known-first-party = ["quantlab", "_common"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["quantlab.engine.EngineConfig", "EngineConfig", "quantlab.portfolio.Sizing", "Sizing",

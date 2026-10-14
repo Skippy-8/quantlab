@@ -22,7 +22,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from quantlab.research.vault import guard
+from quantlab.research.vault import VaultError, guard
 
 
 def default_root() -> Path:
@@ -88,21 +88,61 @@ class Lake:
         return sorted((p.parent.name, p.name) for p in self.root.glob("*/*") if p.is_dir()
                       and any(p.glob("symbol=*/data.parquet")))
 
-    def duckdb(self) -> duckdb.DuckDBPyConnection:
-        """An in-memory DuckDB with one view per dataset, named ``<source>__<dataset>``."""
+    def readable(self) -> list[tuple[str, str]]:
+        """Datasets that may be read now: everything except a sealed vault outside an open run."""
+        out = []
+        for source, dataset in self.datasets():
+            try:
+                guard(self._dir(source, dataset))
+            except VaultError:
+                continue
+            out.append((source, dataset))
+        return out
+
+    def duckdb(self, sec_db: str | Path | None = None) -> duckdb.DuckDBPyConnection:
+        """An in-memory DuckDB with one view per readable dataset, named ``<source>__<dataset>``.
+
+        Sealed vault datasets get no view, so SQL cannot bypass the vault. With ``sec_db``, the
+        point-in-time insider store is attached read-only as schema ``sec``.
+        """
         con = duckdb.connect()
         con.execute("SET TimeZone='UTC'")
-        for source, dataset in self.datasets():
-            glob = (self._dir(source, dataset) / "symbol=*" / "data.parquet").as_posix()
-            con.execute(f"CREATE VIEW {source}__{dataset} AS "
+        for source, dataset in self.readable():
+            glob = (self._dir(source, dataset) / "symbol=*" / "data.parquet").as_posix().replace("'", "''")
+            con.execute(f'CREATE VIEW "{source}__{dataset}" AS '
                         f"SELECT * FROM read_parquet('{glob}', hive_partitioning=true)")
+        if sec_db is not None and Path(sec_db).exists():
+            path = Path(sec_db).as_posix().replace("'", "''")
+            con.execute(f"ATTACH '{path}' AS sec (READ_ONLY)")
         return con
+
+    def tables(self, sec_db: str | Path | None = None) -> pd.DataFrame:
+        """Every relation a query can use: lake views and, when attached, the SEC tables."""
+        return self.duckdb(sec_db).execute(
+            "SELECT view_name AS name, 'lake view' AS kind FROM duckdb_views() "
+            "WHERE NOT internal AND database_name = 'memory' "
+            "UNION ALL SELECT 'sec.' || table_name, 'sec table' FROM duckdb_tables() WHERE database_name = 'sec' "
+            "ORDER BY kind, name").df()
+
+    def sql(self, query: str, sec_db: str | Path | None = None) -> pd.DataFrame:
+        """Run ONE read-only query (SELECT, or WITH ... SELECT) over the lake views.
+
+        Anything else (COPY, CREATE, INSERT, ATTACH, PRAGMA, several statements) is refused
+        before it runs, so a query can read the lake but never write to it or to disk.
+        """
+        con = self.duckdb(sec_db)
+        stmts = con.extract_statements(query)
+        if len(stmts) != 1:
+            raise ValueError(f"expected one SQL statement, got {len(stmts)}")
+        if stmts[0].type != duckdb.StatementType.SELECT:
+            raise ValueError(f"only read-only SELECT queries are allowed, not {stmts[0].type.name}")
+        return con.execute(query).df()
 
     def catalog(self) -> pd.DataFrame:
         rows = []
         con = self.duckdb()
-        for source, dataset in self.datasets():
-            v = f"{source}__{dataset}"
+        for source, dataset in self.readable():
+            v = f'"{source}__{dataset}"'
             n, syms, lo, hi = con.execute(
                 f"SELECT count(*), count(DISTINCT symbol), min(timestamp), max(timestamp) FROM {v}").fetchone()
             files = list(self._dir(source, dataset).glob("symbol=*/data.parquet"))

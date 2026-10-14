@@ -12,7 +12,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dashboard,dev]"
-      - run: ruff check quantlab tests dashboard
+      - run: ruff check quantlab tests dashboard examples
       - run: pytest
       - name: smoke-test the CLI end to end
         env:
