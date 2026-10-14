@@ -21,6 +21,7 @@ dependencies = [
 dashboard = ["streamlit>=1.45"]
 equities = ["yfinance>=0.2.40"]
 dev = ["pytest>=8", "ruff>=0.5"]
+docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5", "mkdocstrings[python]>=0.26"]
 
 [project.scripts]
 quantlab = "quantlab.cli:main"

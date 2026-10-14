@@ -23,10 +23,11 @@ def style(fig: go.Figure, height: int = 320, title: str = "", dark: bool = False
         legend=dict(orientation="h", y=1.0, yanchor="bottom", x=1, xanchor="right", bgcolor="rgba(0,0,0,0)"),
         hovermode="x unified", hoverlabel=dict(font=dict(family=FONT_MONO, size=12)),
         colorway=p["series"])
-    fig.update_xaxes(showgrid=False, linecolor=p["line"], ticks="outside", tickcolor=p["line"],
+    fig.update_xaxes(showgrid=False, automargin=True, linecolor=p["line"], ticks="outside", tickcolor=p["line"],
                      tickfont=dict(family=FONT_MONO, size=11))
-    fig.update_yaxes(gridcolor=p["line"], zerolinecolor=p["line"], tickfont=dict(family=FONT_MONO, size=11),
-                     tickformat=".0%" if pct_y else None)
+    fig.update_yaxes(gridcolor=p["line"], zerolinecolor=p["line"], automargin=True, tickfont=dict(family=FONT_MONO, size=11))
+    if pct_y:
+        fig.update_yaxes(tickformat=".0%")
     return fig
 
 
@@ -39,7 +40,7 @@ def equity(eq: pd.Series, bench: pd.Series | None = None, dark: bool = False, lo
         fig.add_scatter(x=b.index, y=b.values, name="Benchmark", line=dict(color=p["bench"], width=1.5))
     fig.add_scatter(x=eq.index, y=eq.values, name="Strategy", line=dict(color=p["accent"], width=2.2),
                     fill="tozeroy" if not log else None, fillcolor=p["accent_soft"] if not dark else "rgba(139,163,255,.08)")
-    fig.update_yaxes(type="log" if log else "linear", tickprefix="$", tickformat=",.0f")
+    fig.update_yaxes(type="log" if log else "linear", tickformat="$,.0f")
     rng = (eq.min(), eq.max())
     if not log:
         pad = (rng[1] - rng[0]) * 0.08 or rng[1] * 0.02

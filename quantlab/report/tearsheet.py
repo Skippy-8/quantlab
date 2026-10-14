@@ -31,7 +31,7 @@ def _fmt(v, kind: str = "num") -> str:
     if kind == "bp":
         return f"{v:+.1f} bp"
     if kind == "usd":
-        return f"${v:,.0f}"
+        return f"−${-v:,.0f}" if v < 0 else f"${v:,.0f}"
     if kind == "int":
         return f"{int(v):,}"
     return f"{v:.2f}"

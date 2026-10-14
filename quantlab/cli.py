@@ -5,6 +5,11 @@
     quantlab fetch yahoo SPY QQQ --start 2015-01-01
     quantlab catalog                              # what is in the lake
     quantlab backtest sma_crossover --data synthetic/bars --param fast=10 --study demo
+    quantlab backtest --rules my_strategy.yaml --tearsheet report.html --save "RSI dip v1"
+    quantlab walkforward sma_crossover --train 90 --test 30
+    quantlab import prices.csv --source custom --dataset daily      # any CSV/Parquet, columns detected
+    quantlab quality binance/klines_1h                             # gaps, bad bars, outliers, splits
+    quantlab options iron_condor --days 250 --every 5 --hold 14     # synthetic chain demo
     quantlab search bollinger_reversion --data synthetic/bars --study demo --perm 100
     quantlab registry [--study demo]              # trials, K and the current pass bar
     quantlab prereg demo prereg/demo.md           # register a written spec before running
@@ -82,12 +87,26 @@ def cmd_catalog(a):
 
 
 def cmd_backtest(a):
-    spec = REGISTRY[a.strategy]
-    params = _params(a.param, spec.defaults)
+    from dataclasses import replace
     df = _load(a.data, a.symbols, a.start, a.end)
-    res = evaluate(spec.make(**params), df, _cfg(a), score_from=a.score_from)
+    cfg = _cfg(a)
+    if a.rules:
+        from pathlib import Path
+
+        from quantlab.rules import RuleStrategy
+        rule = RuleStrategy.from_yaml(Path(a.rules).read_text())
+        fn, name, params, label = rule.signal_fn(), f"rules:{rule.name}", {"rules": a.rules}, rule.name
+        if rule.exits:
+            cfg = replace(cfg, exits=rule.exit_rules())
+    else:
+        if not a.strategy:
+            raise SystemExit("give a template name or --rules FILE")
+        spec = REGISTRY[a.strategy]
+        params = _params(a.param, spec.defaults)
+        fn, name, label = spec.make(**params), a.strategy, spec.description
+    res = evaluate(fn, df, cfg, score_from=a.score_from)
     reg = Registry()
-    reg.record(a.study, a.strategy, params, res.summary, fingerprint(df), window=str(a.score_from or ""))
+    reg.record(a.study, name, params, res.summary, fingerprint(df), window=str(a.score_from or ""))
     v = reg.verdict(a.study, res.summary)
     s = res.summary
     print(json.dumps({k: s.get(k) for k in ("trades", "mean_net_bp_per_trade", "win_rate", "profit_factor",
@@ -98,8 +117,51 @@ def cmd_backtest(a):
     print(f"\nstudy '{a.study}': K = {v.k}, bar |t| >= {v.bar:.2f}, DSR {v.dsr if v.dsr is None else round(v.dsr, 3)}"
           f"  ->  {'PASS' if v.passed else 'FAIL: ' + '; '.join(v.reasons)}")
     if a.splits:
-        for name, t in splits.report(res.trades).items():
-            print(f"\n-- by {name}\n{t.round(2).to_string()}")
+        for split, t in splits.report(res.positions).items():
+            print(f"\n-- by {split}\n{t.round(2).to_string()}")
+    if a.tearsheet or a.save:
+        from quantlab.portfolio import simulate
+        pf = simulate(res)
+        if a.tearsheet:
+            from quantlab.report.tearsheet import Tearsheet
+            Tearsheet.from_results(res, pf, label, verdict={"passed": v.passed, "text": f"K = {v.k}, bar {v.bar:.2f}"}) \
+                .save(a.tearsheet)
+            print(f"tearsheet -> {a.tearsheet}")
+        if a.save:
+            from quantlab.research import runs
+            print(f"saved run {runs.save(a.save, name, params, res, pf, fingerprint(df), a.study)}")
+
+
+def cmd_walkforward(a):
+    from quantlab.validation import walk_forward
+    spec = REGISTRY[a.strategy]
+    grid = [dict(spec.defaults, **dict(zip(spec.grid, v, strict=True))) for v in itertools.product(*spec.grid.values())]
+    wf = walk_forward(spec.make, grid, _load(a.data, a.symbols, a.start, a.end), a.train, a.test, cfg=_cfg(a))
+    print(wf.folds.to_string(index=False))
+    print(json.dumps(wf.stats, indent=1))
+
+
+def cmd_import(a):
+    from quantlab.data import importer, quality
+    df = importer.standardize(importer.load_file(a.file), symbol=a.symbol)
+    print(quality.report(df)["symbols"].to_string(index=False))
+    print(Lake().write(a.source, a.dataset, df))
+
+
+def cmd_quality(a):
+    from quantlab.data import quality
+    rep = quality.report(_load(a.data))
+    print(rep["symbols"].to_string(index=False))
+    if len(rep["findings"]):
+        print(rep["findings"].head(a.limit).to_string(index=False))
+    return 0 if set(rep["symbols"]["grade"]) <= {"A", "B"} else 1
+
+
+def cmd_options(a):
+    from quantlab.options import STRUCTURES, compare_fills, synthetic
+    chain = synthetic(days=a.days, seed=a.seed)
+    entries = sorted(chain["date"].unique())[::a.every]
+    print(compare_fills(chain, STRUCTURES[a.structure], entries, hold_days=a.hold).round(2).to_string())
 
 
 def cmd_search(a):
@@ -191,7 +253,10 @@ def main(argv=None) -> int:
     sub.add_parser("catalog").set_defaults(fn=cmd_catalog)
 
     p = sub.add_parser("backtest")
-    p.add_argument("strategy", choices=sorted(REGISTRY))
+    p.add_argument("strategy", nargs="?", choices=sorted(REGISTRY))
+    p.add_argument("--rules", help="a YAML rule-strategy file instead of a template")
+    p.add_argument("--tearsheet", help="write an HTML tearsheet here")
+    p.add_argument("--save", help="save the run under this name")
     p.add_argument("--param", nargs="*", help="key=value overrides")
     p.add_argument("--score-from")
     p.add_argument("--splits", action="store_true")
@@ -203,6 +268,33 @@ def main(argv=None) -> int:
     p.add_argument("--perm", type=int, default=100)
     data_args(p)
     p.set_defaults(fn=cmd_search)
+
+    p = sub.add_parser("walkforward")
+    p.add_argument("strategy", choices=sorted(REGISTRY))
+    p.add_argument("--train", type=int, default=90, help="training window, days")
+    p.add_argument("--test", type=int, default=30, help="trading window, days")
+    data_args(p)
+    p.set_defaults(fn=cmd_walkforward)
+
+    p = sub.add_parser("import")
+    p.add_argument("file")
+    p.add_argument("--source", default="custom")
+    p.add_argument("--dataset", default="bars")
+    p.add_argument("--symbol", default=None, help="for files without a symbol column")
+    p.set_defaults(fn=cmd_import)
+
+    p = sub.add_parser("quality")
+    p.add_argument("data", help="source/dataset")
+    p.add_argument("--limit", type=int, default=40)
+    p.set_defaults(fn=cmd_quality)
+
+    p = sub.add_parser("options")
+    p.add_argument("structure")
+    p.add_argument("--days", type=int, default=250)
+    p.add_argument("--every", type=int, default=5)
+    p.add_argument("--hold", type=int, default=14)
+    p.add_argument("--seed", type=int, default=7)
+    p.set_defaults(fn=cmd_options)
 
     p = sub.add_parser("registry")
     p.add_argument("--study")

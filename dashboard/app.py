@@ -1,54 +1,33 @@
-"""quantlab dashboard: home.
+"""quantlab dashboard.
 
     streamlit run dashboard/app.py
 """
 from __future__ import annotations
 
 import streamlit as st
-from ui import fmt, page
 
-from quantlab import monitor
-from quantlab.research.registry import Registry
+st.set_page_config(page_title="quantlab", page_icon=":material/query_stats:", layout="wide",
+                   initial_sidebar_state="expanded")
 
-page("quantlab", "🧪", "A research platform for honest backtests: every trial is counted, every result is "
-     "checked for lookahead, and the out-of-sample set can only be opened once per hypothesis.")
+V = "views/"   # st.Page paths resolve relative to this file
+nav = st.navigation({
+    "": [st.Page(V + "home.py", title="Overview", icon=":material/space_dashboard:", default=True)],
+    "Build": [st.Page(V + "builder.py", title="Strategy Builder", icon=":material/tune:"),
+              st.Page(V + "backtest.py", title="Backtest Lab", icon=":material/science:")],
+    "Validate": [st.Page(V + "optimize.py", title="Parameter Search", icon=":material/grid_on:"),
+                 st.Page(V + "walkforward.py", title="Walk-Forward", icon=":material/fast_forward:"),
+                 st.Page(V + "robustness.py", title="Robustness", icon=":material/shield:"),
+                 st.Page(V + "compare.py", title="Compare Runs", icon=":material/compare_arrows:")],
+    "Markets": [st.Page(V + "options.py", title="Options Lab", icon=":material/stacked_line_chart:"),
+                st.Page(V + "events.py", title="Event Studies", icon=":material/event:"),
+                st.Page(V + "insiders.py", title="Insider Filings", icon=":material/gavel:")],
+    "Data": [st.Page(V + "data.py", title="Data Manager", icon=":material/database:")],
+    "Governance": [st.Page(V + "registry.py", title="Research Registry", icon=":material/fact_check:"),
+                   st.Page(V + "monitor.py", title="Monitoring", icon=":material/monitor_heart:")],
+}, position="sidebar", expanded=True)
 
-from ui import datasets  # noqa: E402
-
-lake, names = datasets()
-reg = Registry()
-studies = reg.studies()
-hb = monitor.heartbeats()
-
-c = st.columns(4)
-c[0].metric("Datasets in the lake", len(names))
-c[1].metric("Studies", len(studies))
-c[2].metric("Trials recorded", sum(reg.k(s) for s in studies))
-c[3].metric("Job runs logged", int((hb["status"] == "ok").sum()) if len(hb) else 0)
-
-if not names:
-    st.info("The lake is empty. Load demo data with `quantlab fetch synthetic`, or public market data with "
-            "`quantlab fetch binance BTCUSDT ETHUSDT --start 2024-01 --end 2024-06 --funding`.")
-
-st.subheader("Workflow")
-st.markdown("""
-| Step | Page | What it enforces |
-|---|---|---|
-| 1. Load data | **Data & Monitoring** | Parquet lake, DuckDB catalog, freshness checks |
-| 2. Test an idea | **Backtest Lab** | One execution model for every strategy; lookahead and symbol-leak checks run first |
-| 3. Search parameters | **Parameter Search** | Every cell is recorded; a whole-search permutation null says whether the best cell beats luck |
-| 4. Judge it | **Research Registry** | The pass bar rises with the number of trials (K); deflated Sharpe uses every trial in the study |
-| 5. Confirm it | `quantlab vault` | A sealed out-of-sample set, opened once per pre-registered spec |
-| Data side-lane | **Insider Explorer** | Point-in-time SEC Form 3/4/5 transactions |
-""")
-
-if studies:
-    st.subheader("Studies")
-    rows = []
-    for s in studies:
-        t = reg.trials(s)
-        best = t["day_t"].max() if len(t) else None
-        rows.append({"study": s, "K (distinct trials)": reg.k(s), "pass bar |t|": round(reg.bar(s), 2),
-                     "best day t": fmt(best), "best clears the bar": bool(best is not None and best >= reg.bar(s)),
-                     "pre-registered": bool(reg.prereg_for(s))})
-    st.dataframe(rows, width="stretch", hide_index=True)
+with st.sidebar:
+    st.html("""<div style="display:flex;align-items:center;gap:.5rem;margin:-.4rem 0 .2rem 0">
+      <span style="font:650 1.15rem 'IBM Plex Sans',sans-serif;letter-spacing:-.01em">quantlab</span>
+      <span style="font:500 .7rem 'IBM Plex Mono',monospace;opacity:.6">honest backtests</span></div>""")
+nav.run()

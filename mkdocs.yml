@@ -1,0 +1,80 @@
+site_name: quantlab
+site_description: A research platform for honest backtests.
+site_url: https://skippy-8.github.io/quantlab/
+repo_url: https://github.com/Skippy-8/quantlab
+repo_name: Skippy-8/quantlab
+edit_uri: edit/main/docs/
+copyright: MIT licensed · built by Sneh Patel
+
+theme:
+  name: material
+  font:
+    text: IBM Plex Sans
+    code: IBM Plex Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle: {icon: material/weather-sunny, name: Light mode}
+  features: [navigation.sections, navigation.top, navigation.footer, content.code.copy, search.highlight, toc.follow]
+  icon: {logo: material/chart-bell-curve-cumulative, repo: fontawesome/brands/github}
+
+extra_css: [stylesheets/extra.css]
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Concepts:
+      - Methodology: concepts/methodology.md
+      - The execution model: concepts/execution.md
+  - Guides:
+      - No-code strategies: guides/rules.md
+      - Exits and portfolio sizing: guides/portfolio.md
+      - Validation and overfitting: guides/validation.md
+      - Options: guides/options.md
+      - Futures: guides/futures.md
+      - Event studies: guides/events.md
+      - Data and quality: guides/data.md
+      - SEC insider filings: guides/sec.md
+      - Dashboard: guides/dashboard.md
+      - Scheduling and monitoring: guides/monitoring.md
+  - API reference:
+      - Engine: reference/engine.md
+      - Portfolio: reference/portfolio.md
+      - Statistics: reference/stats.md
+      - Validation: reference/validation.md
+      - Research: reference/research.md
+      - Options: reference/options.md
+      - Data: reference/data.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.details
+  - pymdownx.arithmatex: {generic: true}
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options: {show_source: false, docstring_style: google, members_order: source, show_root_heading: true,
+                    heading_level: 2, merge_init_into_class: true, show_signature_annotations: true}
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

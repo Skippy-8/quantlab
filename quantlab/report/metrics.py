@@ -65,7 +65,10 @@ def summary(r: pd.Series, periods: int = 365, rf: float = 0.0) -> dict:
     var95 = float(np.percentile(r, 5))
     tail = r[r <= var95]
     q95, q05 = np.percentile(r, 95), np.percentile(r, 5)
-    monthly = (1 + r).groupby(r.index.to_period("M")).prod() - 1 if isinstance(r.index, pd.DatetimeIndex) else None
+    monthly = None
+    if isinstance(r.index, pd.DatetimeIndex):
+        naive = r.index.tz_convert(None) if r.index.tz is not None else r.index
+        monthly = (1 + r).groupby(naive.to_period("M")).prod() - 1
     return {
         "total_return": total, "cagr": cagr,
         "volatility": float(sd * math.sqrt(periods)),
