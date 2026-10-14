@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily quantlab data refresh
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

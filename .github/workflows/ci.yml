@@ -1,0 +1,25 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dashboard,dev]"
+      - run: ruff check quantlab tests dashboard
+      - run: pytest
+      - name: smoke-test the CLI end to end
+        env:
+          QUANTLAB_HOME: /tmp/ql
+          QUANTLAB_LAKE: /tmp/ql/lake
+        run: |
+          quantlab fetch synthetic --bars 1500
+          quantlab backtest sma_crossover --study ci
+          quantlab search donchian_breakout --study ci --perm 10
+          quantlab registry --study ci

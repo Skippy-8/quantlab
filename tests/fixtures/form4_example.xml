@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<!-- Synthetic Form 4 in EDGAR's ownershipDocument schema (fictional issuer and owner). -->
+<ownershipDocument>
+    <schemaVersion>X0508</schemaVersion>
+    <documentType>4</documentType>
+    <periodOfReport>2025-03-03</periodOfReport>
+    <aff10b5One>0</aff10b5One>
+    <issuer>
+        <issuerCik>0009999999</issuerCik>
+        <issuerName>EXAMPLE CORP</issuerName>
+        <issuerTradingSymbol>EXMP</issuerTradingSymbol>
+    </issuer>
+    <reportingOwner>
+        <reportingOwnerId>
+            <rptOwnerCik>0001234567</rptOwnerCik>
+            <rptOwnerName>DOE JANE</rptOwnerName>
+        </reportingOwnerId>
+        <reportingOwnerRelationship>
+            <isDirector>0</isDirector>
+            <isOfficer>1</isOfficer>
+            <isTenPercentOwner>0</isTenPercentOwner>
+            <officerTitle>Chief Financial Officer</officerTitle>
+        </reportingOwnerRelationship>
+    </reportingOwner>
+    <nonDerivativeTable>
+        <nonDerivativeTransaction>
+            <securityTitle><value>Common Stock</value></securityTitle>
+            <transactionDate><value>2025-03-03</value></transactionDate>
+            <transactionCoding><transactionFormType>4</transactionFormType><transactionCode>P</transactionCode></transactionCoding>
+            <transactionAmounts>
+                <transactionShares><value>1,000</value></transactionShares>
+                <transactionPricePerShare><value>50.25</value></transactionPricePerShare>
+                <transactionAcquiredDisposedCode><value>A</value></transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <postTransactionAmounts><sharesOwnedFollowingTransaction><value>11000</value></sharesOwnedFollowingTransaction></postTransactionAmounts>
+            <ownershipNature><directOrIndirectOwnership><value>D</value></directOrIndirectOwnership></ownershipNature>
+        </nonDerivativeTransaction>
+        <nonDerivativeTransaction>
+            <securityTitle><value>Common Stock</value></securityTitle>
+            <transactionDate><value>2025-03-04</value></transactionDate>
+            <transactionCoding><transactionFormType>4</transactionFormType><transactionCode>S</transactionCode>
+                <footnoteId id="F1"/></transactionCoding>
+            <transactionAmounts>
+                <transactionShares><value>200</value></transactionShares>
+                <transactionPricePerShare><value>51.00</value></transactionPricePerShare>
+                <transactionAcquiredDisposedCode><value>D</value></transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <postTransactionAmounts><sharesOwnedFollowingTransaction><value>10800</value></sharesOwnedFollowingTransaction></postTransactionAmounts>
+            <ownershipNature><directOrIndirectOwnership><value>D</value></directOrIndirectOwnership></ownershipNature>
+        </nonDerivativeTransaction>
+    </nonDerivativeTable>
+    <footnotes>
+        <footnote id="F1">Sold pursuant to a Rule 10b5-1 trading plan adopted by the reporting person on November 15, 2024.</footnote>
+    </footnotes>
+</ownershipDocument>

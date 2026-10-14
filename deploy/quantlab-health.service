@@ -1,0 +1,9 @@
+# Example: hourly health check. Non-zero exit = something is stale or failing; pair with OnFailure= alerting.
+[Unit]
+Description=quantlab: job heartbeats and data freshness
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/quantlab
+EnvironmentFile=/opt/quantlab/.env
+ExecStart=/opt/quantlab/.venv/bin/quantlab monitor --job fetch_binance=24 --data binance/klines_1h=48

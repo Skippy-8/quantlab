@@ -1,0 +1,10 @@
+# Example: refresh public market data daily. Copy to /etc/systemd/system/ and adjust paths.
+[Unit]
+Description=quantlab: append the latest Binance public archive month to the lake
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/quantlab
+EnvironmentFile=/opt/quantlab/.env
+ExecStart=/opt/quantlab/.venv/bin/quantlab fetch binance BTCUSDT ETHUSDT SOLUSDT --start 2024-01 --end 2026-12 --funding
