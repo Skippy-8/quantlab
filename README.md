@@ -1,5 +1,7 @@
 # quantlab
 
+[![ci](https://github.com/Skippy-8/quantlab/actions/workflows/ci.yml/badge.svg)](https://github.com/Skippy-8/quantlab/actions/workflows/ci.yml)
+
 **A research platform for honest backtests.** Most backtests overstate their results for three
 reasons: the strategy quietly uses future data, the fills are better than the market would have
 given, and nobody counts how many variants were tried before the "winner". quantlab makes each of
@@ -55,7 +57,7 @@ flowchart LR
 ## Quick start
 
 ```bash
-git clone https://github.com/<you>/quantlab && cd quantlab
+git clone https://github.com/Skippy-8/quantlab && cd quantlab
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dashboard,dev]"
 
