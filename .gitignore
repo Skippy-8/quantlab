@@ -9,7 +9,7 @@ build/
 dist/
 # local research state and data: never committed
 .quantlab/
-data/
+/data/
 *.parquet
 *.duckdb
 *.duckdb.wal
