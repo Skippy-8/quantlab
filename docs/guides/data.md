@@ -24,6 +24,8 @@ accident.
 |---|---|
 | `quantlab fetch binance SYMS --start YYYY-MM --end YYYY-MM [--funding]` | Binance public archive (spot or USD-M futures), including delisted symbols |
 | `quantlab fetch yahoo TICKERS --start DATE` | Daily US equities (split/dividend adjusted) |
+| `quantlab fetch fred SERIES --start YYYY-MM` | FRED macro series (DGS10, CPIAUCSL, UNRATE, ...), stored as bars so quality checks and SQL treat them like prices |
+| `quantlab fetch ccxt PAIRS --exchange ID --interval 1h` | OHLCV from any exchange the ccxt library supports |
 | `ccxt_ohlcv(exchange, pairs, ...)` | Any of 100+ exchanges via CCXT |
 | `fred_series("DGS10")` | FRED macro series |
 | `quantlab import FILE` | Your CSV/Parquet: `Date`/`time`/`timestamp`, `Open`/`High`/`Low`/`Close`, `Volume`, `Ticker`/`Symbol` and other aliases are detected; epoch seconds/ms/µs and zoned or naive dates are parsed to UTC |

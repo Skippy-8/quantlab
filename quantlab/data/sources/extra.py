@@ -61,3 +61,10 @@ def fred_series(series_id: str, start: str | None = None) -> pd.DataFrame:
     if start:
         df = df[df["timestamp"] >= pd.Timestamp(start, tz="UTC")]
     return df.dropna(subset=["value"]).reset_index(drop=True)
+
+
+def fred_to_bars(df: pd.DataFrame) -> pd.DataFrame:
+    """A FRED series in the lake's bar shape (open = high = low = close = value), so the
+    catalog, quality checks and SQL views treat macro data like any other dataset."""
+    v = df["value"]
+    return df.drop(columns=["value"]).assign(open=v, high=v, low=v, close=v, volume=0.0)

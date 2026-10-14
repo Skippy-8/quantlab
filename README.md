@@ -3,8 +3,9 @@
 <p align="center"><b>Backtests that can't lie to you.</b></p>
 
 <p align="center">
-An end-to-end quant research platform: a realistic execution engine, overfitting controls that count
-every attempt, a 13-page research dashboard, and a real-time Node.js console. Python, TypeScript and SQL.
+An end-to-end financial data platform and research engine: multi-source ingestion into a DuckDB/SQL
+data lake, automated data-quality and lookahead checks, statistical validation that counts every
+attempt, stakeholder-ready reports, a 13-page analytics dashboard and a real-time Node.js console.
 </p>
 
 <p align="center">
@@ -44,6 +45,11 @@ things you tried.
 
 ## Highlights
 
+- **Trusted data before any analysis.** Six sources (FRED macro series, rate-limited SEC EDGAR Form
+  3/4/5 filings, equities, crypto, any CCXT exchange, and CSV/Parquet files with automatic column
+  detection) land in one partitioned Parquet lake, queried in place through DuckDB SQL views.
+  `quantlab quality` grades every series for gaps, duplicates, impossible bars, outliers and
+  unadjusted splits, and scheduled jobs write heartbeats that alert when a feed goes stale.
 - **A strategy that cheats is caught before it is scored.** Every run is replayed on truncated data
   and on reordered symbols. If any past signal changes, the run is rejected.
 - **Honest fills.** Limit orders fill only when price trades *through* them, inside a time-to-live,
@@ -56,8 +62,11 @@ things you tried.
 - **One platform, every asset class.** Crypto perpetuals with funding, equities, continuous futures,
   multi-leg options priced at mid, quarter and natural, event studies, and a point-in-time SEC
   insider-filings pipeline.
-- **No-code or full code.** Write `rsi(14) < 30 and close > sma(200)` in the Strategy Builder (35
-  indicators, parsed safely, saved as YAML), or hand the engine any Python function.
+- **Self-service for people who don't write Python.** Rules are written as sentences
+  (`rsi(14) < 30 and close > sma(200)`), checked against the data, and saved as YAML that can be
+  reviewed and versioned. Any result exports as a standalone HTML report that opens in a browser and
+  can be emailed. Every saved run records its code version and a data fingerprint, so it can be
+  reproduced exactly later.
 - **Live and observable.** A Node.js console streams every trial, run and job heartbeat to the
   browser as it happens. It can launch backtests and stream their output too.
 
@@ -89,9 +98,28 @@ things you tried.
 | Out-of-sample | a final holdout, often reused | walk-forward, and a sealed vault that opens once per pre-registered spec |
 | Options P&L | marked at the mid | the same trades at mid, quarter and natural, to show how much of the edge is the spread |
 
-## A real result
+## Two real checks
 
-A Donchian breakout grid on six Binance perpetuals, hourly bars, all of 2024:
+**Data quality.** Ten years of the 10-year Treasury yield and the unemployment rate, straight from
+FRED:
+
+```
+$ quantlab fetch fred DGS10 UNRATE --start 2015-01
+$ quantlab quality fred/series
+symbol  bars       first        last  grade  outlier
+ DGS10  2946  2015-01-02  2026-10-13      C        4
+UNRATE   140  2015-01-01  2026-09-01      B        1
+ DGS10  outlier  2020-03-09   -27.0% in one bar (17 robust sd)
+ DGS10  outlier  2020-03-10   +40.7% in one bar (18 robust sd)
+UNRATE  outlier  2020-04-01  +236.4% in one bar (34 robust sd)
+```
+
+Every flag is March or April 2020. These are real moves, not bad prints, and that is the point: the
+grader surfaces them for a person to judge instead of silently deleting them. Then the analyst
+decides whether a study should include the COVID shock.
+
+**Statistical significance.** A Donchian breakout grid on six Binance perpetuals, hourly bars, all of
+2024:
 
 ```
 $ quantlab search donchian_breakout --data binance/klines_1h --study trend --perm 200
@@ -142,11 +170,21 @@ Tearsheet.from_results(res, pf, title="RSI dip").save("rsi_dip.html")
 ```
 
 ```bash
-quantlab fetch binance BTCUSDT ETHUSDT SOLUSDT --start 2024-01 --end 2024-12 --funding
-quantlab quality binance/klines_1h                      # grade the data before trusting it
-quantlab backtest donchian_breakout --data binance/klines_1h --study trend --tearsheet report.html
-quantlab walkforward donchian_breakout --data binance/klines_1h --train 120 --test 30
-quantlab import my_prices.csv --source broker --dataset daily     # your own files, columns detected
+# ingest: macro, regulatory, market data and your own files
+quantlab fetch fred DGS10 CPIAUCSL UNRATE --start 2010-01          # FRED macro series
+SEC_USER_AGENT="Your Name you@example.com" \
+  quantlab sec sync AAPL MSFT NVDA --since 2022-01-01              # SEC Form 3/4/5 insider filings
+quantlab fetch yahoo SPY QQQ IWM TLT --start 2015-01-01            # daily equities and ETFs ([equities] extra)
+quantlab fetch binance BTCUSDT ETHUSDT --start 2024-01 --end 2024-12 --funding
+quantlab import prices.csv --source broker --dataset daily         # any CSV/Parquet, columns detected
+
+# check: grade the data before anything reads it, and alert on stale feeds
+quantlab quality yahoo/daily
+quantlab monitor --job fetch_fred=24 --data yahoo/daily=36          # non-zero exit for cron/systemd alerts
+
+# analyse and report
+quantlab backtest donchian_breakout --data yahoo/daily --study etf-trend --tearsheet report.html
+quantlab walkforward donchian_breakout --data yahoo/daily --train 750 --test 250
 ```
 
 ## Tech stack
@@ -154,7 +192,7 @@ quantlab import my_prices.csv --source broker --dataset daily     # your own fil
 | Layer | Built with |
 |---|---|
 | **Research core** | Python 3.11+, pandas, NumPy; a vectorized fast mode for large sweeps |
-| **Data** | Parquet lake (PyArrow) queried in place with DuckDB SQL; Binance, Yahoo, CCXT, FRED and SEC EDGAR sources; CSV/Parquet import with column detection and quality grading |
+| **Data & SQL** | Parquet lake (PyArrow) with one DuckDB SQL view per dataset and a SQL console; FRED, SEC EDGAR, Yahoo, Binance and CCXT sources; CSV/Parquet import with column detection; automated quality grading; idempotent upserts (re-running a load changes nothing) |
 | **Research UI** | Streamlit (13 pages), Plotly, standalone HTML tearsheets |
 | **Live console** | Node.js 22, TypeScript (strict), Fastify, WebSockets, DuckDB embedded in Node, React 19 + Vite, hand-drawn SVG charts |
 | **Quality** | 220+ tests (pytest and Vitest), ruff, strict `tsc`; every dashboard page rendered headlessly in CI; a cross-language contract test holding Python and Node to the same numbers |
@@ -215,7 +253,7 @@ quantlab/
   stats/            deflated Sharpe, PSR, Holm/BHY, Harvey-Liu, MinBTL, bootstrap, permutation nulls
   research/         trial registry, pre-registration, sealed vault, splits, saved runs
   report/           metrics, Plotly charts, HTML tearsheets
-  data/             the lake, importers, quality reports, public sources
+  data/             the lake, importers, quality grading, public sources (FRED, Yahoo, Binance, CCXT)
   sec/              EDGAR client (rate limited), Form 3/4/5 parser, point-in-time store
   monitor/          heartbeats and health checks
 dashboard/          the Streamlit app (13 pages)

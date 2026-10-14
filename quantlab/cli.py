@@ -3,6 +3,8 @@
     quantlab fetch synthetic                      # demo data into the lake
     quantlab fetch binance BTCUSDT ETHUSDT --start 2024-01 --end 2024-06 [--funding]
     quantlab fetch yahoo SPY QQQ --start 2015-01-01
+    quantlab fetch fred DGS10 CPIAUCSL UNRATE --start 2010-01  # macro series from FRED
+    quantlab fetch ccxt BTC/USD ETH/USD --exchange kraken     # any exchange ccxt supports
     quantlab catalog                              # what is in the lake
     quantlab backtest sma_crossover --data synthetic/bars --param fast=10 --study demo
     quantlab backtest --rules my_strategy.yaml --tearsheet report.html --save "RSI dip v1"
@@ -80,6 +82,18 @@ def cmd_fetch(a):
         elif a.source == "yahoo":
             from quantlab.data.sources import yahoo
             print(lake.write("yahoo", "daily", yahoo.fetch_daily(a.symbols, a.start)))
+        elif a.source == "fred":
+            from quantlab.data.sources.extra import fred_series, fred_to_bars
+            frames = [fred_to_bars(fred_series(s, _day(a.start))) for s in a.symbols]
+            print(lake.write("fred", "series", pd.concat(frames, ignore_index=True)))
+        elif a.source == "ccxt":
+            from quantlab.data.sources.extra import ccxt_ohlcv
+            print(lake.write(a.exchange, f"ohlcv_{a.interval}", ccxt_ohlcv(a.exchange, a.symbols, a.interval, _day(a.start))))
+
+
+def _day(s: str) -> str:
+    """'2024-01' -> '2024-01-01': the month form the other sources take, as a date."""
+    return f"{s}-01" if len(s) == 7 else s
 
 
 def cmd_catalog(a):
@@ -255,12 +269,13 @@ def main(argv=None) -> int:
         p.add_argument("--equities", action="store_true", help="annualise on 252 days")
 
     p = sub.add_parser("fetch")
-    p.add_argument("source", choices=["synthetic", "binance", "yahoo"])
+    p.add_argument("source", choices=["synthetic", "binance", "yahoo", "fred", "ccxt"])
     p.add_argument("symbols", nargs="*")
     p.add_argument("--start", default="2024-01")
     p.add_argument("--end", default="2024-06")
     p.add_argument("--interval", default="1h")
     p.add_argument("--funding", action="store_true")
+    p.add_argument("--exchange", default="kraken", help="ccxt exchange id")
     p.add_argument("--bars", type=int, default=4000)
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--edge", type=float, default=0.0, help="planted mean-reversion edge (synthetic)")

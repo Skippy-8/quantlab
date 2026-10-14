@@ -110,12 +110,11 @@ with tabs[2]:
     else:
         sid = st.text_input("Series id", "DGS10", help="e.g. DGS10 (10y Treasury), CPIAUCSL, UNRATE, VIXCLS")
         if st.button("Fetch", type="primary"):
-            from quantlab.data.sources.extra import fred_series
+            from quantlab.data.sources.extra import fred_series, fred_to_bars
             d = fred_series(sid)
             fig = px.line(d, x="timestamp", y="value")
             chart(style(fig, 280, sid, is_dark()), "fred")
-            d2 = d.rename(columns={"value": "close"}).assign(open=d["value"], high=d["value"], low=d["value"], volume=0.0)
-            st.write(lake.write("fred", "series", d2))
+            st.write(lake.write("fred", "series", fred_to_bars(d)))
 
 with tabs[3]:
     names = [f"{s}/{d}" for s, d in lake.datasets()]
