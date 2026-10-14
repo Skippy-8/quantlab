@@ -43,6 +43,7 @@ nav:
       - Data and quality: guides/data.md
       - SEC insider filings: guides/sec.md
       - Dashboard: guides/dashboard.md
+      - Live console (Node.js): guides/console.md
       - Scheduling and monitoring: guides/monitoring.md
   - API reference:
       - Engine: reference/engine.md

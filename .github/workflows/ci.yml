@@ -1,7 +1,7 @@
 name: ci
 on: [push, pull_request]
 jobs:
-  test:
+  python:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,3 +23,52 @@ jobs:
           quantlab backtest sma_crossover --study ci
           quantlab search donchian_breakout --study ci --perm 10
           quantlab registry --study ci
+
+  console:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  contract:
+    # The Python platform writes a real QUANTLAB_HOME; the Node console must read it
+    # and agree with `quantlab registry --json` on every study's K and bar.
+    runs-on: ubuntu-latest
+    needs: [python, console]
+    env:
+      QUANTLAB_HOME: /tmp/ql
+      QUANTLAB_LAKE: /tmp/ql/lake
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - run: pip install -e .
+      - name: write a research home with the Python CLI
+        run: |
+          quantlab fetch synthetic --bars 1500
+          quantlab backtest sma_crossover --study contract --save "SMA default"
+          quantlab backtest donchian_breakout --study contract --save "Donchian default"
+          quantlab search bollinger_reversion --study contract --perm 5
+      - working-directory: console
+        run: npm ci
+      - working-directory: console
+        env:
+          QUANTLAB_CLI: quantlab
+        run: npm run test:contract

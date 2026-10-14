@@ -1,7 +1,7 @@
 [project]
 name = "quantlab"
 version = "0.1.0"
-description = "A research platform for honest backtests: a standardized scoring engine, multiple-testing controls, a sealed out-of-sample vault, a Parquet/DuckDB data lake and a Streamlit dashboard."
+description = "Backtests that can't lie to you: a realistic execution engine, overfitting controls that count every attempt, a Parquet/DuckDB data lake, a Streamlit research dashboard and a real-time Node.js console."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

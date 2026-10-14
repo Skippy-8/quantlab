@@ -1,0 +1,19 @@
+{
+ "trades": 79,
+ "mean_net_bp_per_trade": -30.297,
+ "win_rate": 0.3291,
+ "profit_factor": 0.8358,
+ "day_t": -0.547,
+ "calendar_sharpe": -1.32,
+ "half1_mean_day_bp": -79.44,
+ "half2_mean_day_bp": 2.161,
+ "max_drawdown_bp": -4768.82,
+ "entry_fill_rate": 1.0,
+ "exits": {
+  "maker": 75,
+  "eod": 4
+ }
+}
+
+study 'fx': K = 1, bar |t| >= 2.00, DSR 0.293  ->  FAIL: day t -0.547 below the bar 2.00 (K = 1); not positive in both calendar halves; deflated Sharpe 0.29 < 0.95
+saved run 20261014-120000-abc123

@@ -1,117 +1,97 @@
 <h1 align="center">quantlab</h1>
 
-<p align="center"><b>A research platform for honest backtests.</b><br/>
-Build a strategy, run it through one realistic execution model, and find out whether the result
-survives the number of things you tried.</p>
+<p align="center"><b>Backtests that can't lie to you.</b></p>
+
+<p align="center">
+An end-to-end quant research platform: a realistic execution engine, overfitting controls that count
+every attempt, a 13-page research dashboard, and a real-time Node.js console. Python, TypeScript and SQL.
+</p>
 
 <p align="center">
   <a href="https://github.com/Skippy-8/quantlab/actions/workflows/ci.yml"><img src="https://github.com/Skippy-8/quantlab/actions/workflows/ci.yml/badge.svg" alt="ci"/></a>
-  <a href="https://skippy-8.github.io/quantlab/"><img src="https://img.shields.io/badge/docs-skippy--8.github.io%2Fquantlab-3b4fd8" alt="docs"/></a>
-  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-3b4fd8" alt="python"/>
-  <img src="https://img.shields.io/badge/license-MIT-3b4fd8" alt="MIT"/>
+  <a href="https://skippy-8.github.io/quantlab/"><img src="https://img.shields.io/badge/docs-live-3550c8" alt="docs"/></a>
+  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-3550c8" alt="python"/>
+  <img src="https://img.shields.io/badge/node-22-3550c8" alt="node"/>
+  <img src="https://img.shields.io/badge/typescript-strict-3550c8" alt="typescript"/>
+  <img src="https://img.shields.io/badge/tests-220%2B-14805e" alt="tests"/>
+  <img src="https://img.shields.io/badge/license-MIT-6b7280" alt="MIT"/>
+</p>
+
+<p align="center">
+  <a href="https://skippy-8.github.io/quantlab/"><b>Documentation</b></a> ·
+  <a href="https://skippy-8.github.io/quantlab/getting-started/">Five-minute start</a> ·
+  <a href="https://skippy-8.github.io/quantlab/concepts/methodology/">Methodology</a> ·
+  <a href="console/">Live console</a>
 </p>
 
 ![The Backtest Lab](docs/images/backtest-light.png)
 
-Most backtests overstate their results for three reasons:
+## The problem
 
-1. **The strategy reads the future.** A centred rolling window, a full-sample mean, or a `shift(-1)`
-   is enough, and the equity curve looks wonderful.
-2. **The fills are better than the market would have given.** A limit order fills because the
-   close touched it, and fees, funding, borrow and rolls are left out.
-3. **Nobody counts the attempts.** The best of 200 parameter sets is reported as if it were the
-   only one tried.
+Almost every backtest you have seen is too good, and for the same three reasons:
 
-quantlab makes each of these mechanically hard to get wrong, and then covers the rest of the
-workflow around them: data, strategy authoring, validation, reporting and monitoring. It works from
-a dashboard, a CLI, or plain Python.
+- **It reads the future.** One centred rolling window, one full-sample mean, one `shift(-1)`, and the
+  equity curve goes vertical.
+- **It fills at prices nobody would have given it.** The close touched your limit, so it filled.
+  Fees, funding, borrow and rolls are a rounding error, apparently.
+- **It forgets what it tried.** The winner of 200 parameter sets is presented as if it were the only
+  idea anyone ever had.
 
-**[Documentation](https://skippy-8.github.io/quantlab/)** ·
-[Getting started](https://skippy-8.github.io/quantlab/getting-started/) ·
-[Methodology](https://skippy-8.github.io/quantlab/concepts/methodology/)
+quantlab is built so that none of these can happen quietly. A strategy that peeks is **refused,
+with the row that proves it**. Fills come from **one execution model** that every strategy shares.
+And every variant you run is **counted**: the bar a result has to clear rises with the number of
+things you tried.
 
----
+## Highlights
 
-## What is in the box
+- **A strategy that cheats is caught before it is scored.** Every run is replayed on truncated data
+  and on reordered symbols. If any past signal changes, the run is rejected.
+- **Honest fills.** Limit orders fill only when price trades *through* them, inside a time-to-live,
+  with a taker fallback. Fees, funding, short borrow and futures rolls are charged. Stops,
+  profit-target ladders, breakeven and trailing exits are modelled with partial fills, and a gap
+  through a stop fills at the open.
+- **The best cell has to beat luck, not zero.** Parameter searches are re-run on shuffled signals,
+  and the best real cell is compared with the best shuffled one. Deflated Sharpe, PBO, White's
+  Reality Check, Hansen's SPA, Holm/BHY, walk-forward testing, and a sealed one-shot holdout vault.
+- **One platform, every asset class.** Crypto perpetuals with funding, equities, continuous futures,
+  multi-leg options priced at mid, quarter and natural, event studies, and a point-in-time SEC
+  insider-filings pipeline.
+- **No-code or full code.** Write `rsi(14) < 30 and close > sma(200)` in the Strategy Builder (35
+  indicators, parsed safely, saved as YAML), or hand the engine any Python function.
+- **Live and observable.** A Node.js console streams every trial, run and job heartbeat to the
+  browser as it happens. It can launch backtests and stream their output too.
 
-| | |
-|---|---|
-| **Execution** | One engine scores every strategy. A limit order fills only when price trades *through* it, unfilled orders expire with a taker fallback, and fees, funding, short borrow and futures rolls are charged. Exits cover stops, profit-target ladders, breakeven and trailing stops with partial fills. A gap through a stop fills at the open, not at the stop |
-| **Integrity checks** | Every strategy is re-run on truncated data and on reordered symbols before it is scored. One that reads the future, or leaks one symbol's rows into another's, is rejected, along with the row that proves it |
-| **Multiple testing** | A trial registry counts every variant in a study, and the pass bar rises with the count. Includes the deflated Sharpe ratio, Holm and BHY, the Harvey-Liu haircut, whole-search permutation nulls, PBO by CSCV, White's Reality Check and Hansen's SPA |
-| **Out-of-sample** | Walk-forward optimisation and a sealed, hashed vault that opens once per pre-registered hypothesis |
-| **Portfolio** | Dollar equity under fixed-notional, fixed-fraction, volatility-target or risk-per-trade sizing, with leverage, position and margin limits. Futures trade in whole contracts |
-| **Strategies** | 35 causal indicators and a no-code rule language (`rsi(14) < 30 and close > sma(200)`). Rules are parsed safely, never `eval`'d, and stored as YAML. Python covers everything else |
-| **Asset classes** | Crypto perpetuals with funding, equities, continuous futures (calendar or volume roll, ratio or difference adjustment), multi-leg options on bid/ask chains, and event studies |
-| **Data** | A Parquet lake with a DuckDB catalog. Sources are Binance, Yahoo, any CCXT exchange, FRED and SEC EDGAR. CSV and Parquet import detects columns, and quality reports grade each symbol |
-| **Reporting** | Metrics and benchmark statistics, plus a standalone HTML tearsheet. Each saved run records its code version and a data fingerprint |
-| **Operations** | Job heartbeats and freshness checks that exit non-zero for alerting, example systemd units, and CI that renders every dashboard page headlessly |
+## See it
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/console-live-light.png" alt="Live console"/><br/><sub><b>Live console (Node.js).</b> Every trial, run and heartbeat on the platform, pushed over a WebSocket.</sub></td>
+<td width="50%"><img src="docs/images/console-run-dark.png" alt="A saved run in the console"/><br/><sub><b>Run detail.</b> Equity and drawdown read straight from Parquet by DuckDB inside Node.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/images/optimize-light.png" alt="Parameter Search"/><br/><sub><b>Parameter Search.</b> Every cell counted, and the best one tested against the best of the same search on shuffled signals.</sub></td>
+<td><img src="docs/images/walkforward-light.png" alt="Walk-Forward"/><br/><sub><b>Walk-Forward.</b> Parameters chosen on the past only, then stitched across windows nobody optimised on.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/images/options-light.png" alt="Options Lab"/><br/><sub><b>Options Lab.</b> Thirteen structures, legs chosen by delta, moneyness or offset, priced three ways.</sub></td>
+<td><img src="docs/images/console-launch-light.png" alt="Launch a backtest"/><br/><sub><b>Launch from the browser.</b> Validated, spawned without a shell, streamed line by line, verdict parsed.</sub></td>
+</tr>
+</table>
 
 ## How it differs from a typical backtest
 
 | | Typical backtest | quantlab |
 |---|---|---|
 | Limit-order fills | the bar touched the price | price traded through it, within a time-to-live |
-| Lookahead | reviewed by eye, if at all | the strategy is re-run on truncated data and refused if any past signal changes |
-| Parameter search | report the best cell | the whole search is re-run on shuffled signals, and the best cell must beat the best shuffled cell |
-| Significance bar | t > 2 | `max(2, √(2 ln K))` for K distinct trials, plus a deflated Sharpe over every trial |
+| Lookahead | reviewed by eye, if at all | replayed on truncated data and refused if any past signal changes |
+| Parameter search | report the best cell | the best cell must beat the best cell of the same search on shuffled signals |
+| Significance bar | t > 2 | `max(2, √(2 ln K))` for K distinct trials, plus a deflated Sharpe over all of them |
 | Out-of-sample | a final holdout, often reused | walk-forward, and a sealed vault that opens once per pre-registered spec |
-| Options P&L | marked at the mid | the same trades at mid, quarter and natural, so you can see how much of the edge is the spread |
+| Options P&L | marked at the mid | the same trades at mid, quarter and natural, to show how much of the edge is the spread |
 
-## The dashboard
+## A real result
 
-```bash
-streamlit run dashboard/app.py
-```
-
-Thirteen pages in five groups: **Build** (Strategy Builder, Backtest Lab), **Validate** (Parameter
-Search, Walk-Forward, Robustness, Compare Runs), **Markets** (Options Lab, Event Studies, Insider
-Filings), **Data** (Data Manager), and **Governance** (Research Registry, Monitoring). It follows the
-viewer's light or dark setting.
-
-<table>
-<tr>
-<td width="50%"><img src="docs/images/optimize-light.png" alt="Parameter Search"/><br/><sub><b>Parameter Search.</b> Every cell is recorded as a trial. The best cell is compared against the best cell of the same search on shuffled signals.</sub></td>
-<td width="50%"><img src="docs/images/walkforward-light.png" alt="Walk-Forward"/><br/><sub><b>Walk-Forward.</b> Parameters chosen on the past only, stitched across folds nobody optimised on.</sub></td>
-</tr>
-<tr>
-<td><img src="docs/images/options-light.png" alt="Options Lab"/><br/><sub><b>Options Lab.</b> Thirteen structures, legs chosen by delta, moneyness or offset, priced at mid, quarter and natural.</sub></td>
-<td><img src="docs/images/builder-light.png" alt="Strategy Builder"/><br/><sub><b>Strategy Builder.</b> Rules written as sentences, checked for causality against real data, saved as YAML.</sub></td>
-</tr>
-<tr>
-<td><img src="docs/images/robustness-light.png" alt="Robustness"/><br/><sub><b>Robustness.</b> Monte Carlo drawdown ranges, and Reality Check / SPA across saved runs.</sub></td>
-<td><img src="docs/images/backtest-dark.png" alt="Backtest Lab, dark theme"/><br/><sub><b>Dark theme.</b> The same Backtest Lab.</sub></td>
-</tr>
-</table>
-
-## Quick start
-
-```bash
-git clone https://github.com/Skippy-8/quantlab && cd quantlab
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dashboard,dev]"            # add [equities] for Yahoo data
-
-quantlab fetch synthetic                      # demo data, no network needed
-quantlab backtest sma_crossover --study demo --splits
-quantlab search bollinger_reversion --study demo --perm 200
-quantlab registry --study demo
-streamlit run dashboard/app.py
-```
-
-Real data, all from public sources:
-
-```bash
-quantlab fetch binance BTCUSDT ETHUSDT SOLUSDT --start 2024-01 --end 2024-12 --funding
-quantlab quality binance/klines_1h
-quantlab backtest donchian_breakout --data binance/klines_1h --study trend \
-    --tearsheet report.html --save "Donchian 55/20"
-quantlab walkforward donchian_breakout --data binance/klines_1h --train 120 --test 30
-quantlab import my_prices.csv --source broker --dataset daily       # your own files
-```
-
-## What a result looks like
-
-A Donchian breakout grid on six Binance perpetuals, hourly bars, 2024:
+A Donchian breakout grid on six Binance perpetuals, hourly bars, all of 2024:
 
 ```
 $ quantlab search donchian_breakout --data binance/klines_1h --study trend --perm 200
@@ -120,11 +100,28 @@ whole-search permutation p = 0.488 over 200 shuffles (null best median 1.29)
 study 'trend': K = 6, bar 2.00
 ```
 
-The best of six cells looks mildly positive at t 1.33. When the *same six-cell search* is re-run
-on shuffled signals, it does at least as well about half the time, so 1.33 is what a search of
-that size finds by luck. That comparison is the one quantlab makes by default.
+The best of six cells shows t 1.33, and most tools would stop there. quantlab re-runs the *same
+six-cell search* 200 times on shuffled signals, and that does at least as well about half the time.
+So t 1.33 is what a search that size finds by luck. This is the check quantlab runs by default.
 
-## In Python
+## Three ways in
+
+**The dashboard**: 13 pages for building, validating and comparing strategies.
+
+```bash
+pip install -e ".[dashboard]"
+quantlab fetch synthetic          # demo data, no network needed
+streamlit run dashboard/app.py
+```
+
+**The live console**: Node.js and TypeScript, watching the platform in real time.
+
+```bash
+cd console && npm install && npm run build
+QUANTLAB_HOME=../.quantlab QUANTLAB_LAKE=../data/lake QUANTLAB_CLI=../.venv/bin/quantlab npm start
+```
+
+**Python and the CLI**, for anything scripted:
 
 ```python
 from quantlab import evaluate
@@ -144,20 +141,24 @@ pf = simulate(res, Sizing(method="vol_target", target_vol=0.15, max_leverage=2))
 Tearsheet.from_results(res, pf, title="RSI dip").save("rsi_dip.html")
 ```
 
-A strategy in plain Python is a function from the panel to a `signal` column:
-
-```python
-import numpy as np
-
-def sma_cross(df, fast=20, slow=100):
-    g = df.groupby("symbol")["close"]
-    f = g.transform(lambda s: s.rolling(fast).mean())
-    s = g.transform(lambda s: s.rolling(slow).mean())
-    return df.assign(signal=np.where(f > s, 1, -1))      # the position wanted after each close
+```bash
+quantlab fetch binance BTCUSDT ETHUSDT SOLUSDT --start 2024-01 --end 2024-12 --funding
+quantlab quality binance/klines_1h                      # grade the data before trusting it
+quantlab backtest donchian_breakout --data binance/klines_1h --study trend --tearsheet report.html
+quantlab walkforward donchian_breakout --data binance/klines_1h --train 120 --test 30
+quantlab import my_prices.csv --source broker --dataset daily     # your own files, columns detected
 ```
 
-Forget the `groupby`, or use `shift(-1)` or a full-sample mean, and `evaluate` refuses to score
-it.
+## Tech stack
+
+| Layer | Built with |
+|---|---|
+| **Research core** | Python 3.11+, pandas, NumPy; a vectorized fast mode for large sweeps |
+| **Data** | Parquet lake (PyArrow) queried in place with DuckDB SQL; Binance, Yahoo, CCXT, FRED and SEC EDGAR sources; CSV/Parquet import with column detection and quality grading |
+| **Research UI** | Streamlit (13 pages), Plotly, standalone HTML tearsheets |
+| **Live console** | Node.js 22, TypeScript (strict), Fastify, WebSockets, DuckDB embedded in Node, React 19 + Vite, hand-drawn SVG charts |
+| **Quality** | 220+ tests (pytest and Vitest), ruff, strict `tsc`; every dashboard page rendered headlessly in CI; a cross-language contract test holding Python and Node to the same numbers |
+| **Ops** | GitHub Actions (Python matrix, Node, contract, docs), MkDocs Material site on GitHub Pages, job heartbeats with freshness alerts, example systemd units |
 
 ## Architecture
 
@@ -183,13 +184,19 @@ flowchart LR
       REG[Trial registry<br/>K · rising bar · DSR]
       WF[Walk-forward · PBO<br/>permutation · SPA]
     end
+    subgraph Console[Node.js console]
+      WATCH[Watcher + WebSocket]
+      JOBS[Job runner]
+    end
     SRC --> LAKE
     SEC --> INS
     RULES & PY --> CHK
     LAKE --> CHK --> ENG --> PF --> REP[Tearsheets<br/>saved runs]
     ENG --> REG & WF
     VAULT -. registered run only .-> ENG
-    REP & REG & WF & INS --> UI[Dashboard · CLI]
+    REP & REG & WF & INS --> UI[Streamlit dashboard · CLI]
+    REG & REP --> WATCH --> BROWSER[Browser]
+    BROWSER --> JOBS -- spawns --> ENG
 ```
 
 ## Project layout
@@ -212,9 +219,10 @@ quantlab/
   sec/              EDGAR client (rate limited), Form 3/4/5 parser, point-in-time store
   monitor/          heartbeats and health checks
 dashboard/          the Streamlit app (13 pages)
+console/            the live console: Node.js + TypeScript server, React front end, Vitest suite
 docs/               the documentation site (MkDocs Material)
 deploy/             example systemd units for scheduled fetches and health checks
-tests/              172 tests: fill rules, lookahead detection, statistics against published values,
+tests/              pytest: fill rules, lookahead detection, statistics against published values,
                     exits, sizing, options pricing, rules, every dashboard page
 ```
 

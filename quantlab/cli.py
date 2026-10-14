@@ -11,7 +11,8 @@
     quantlab quality binance/klines_1h                             # gaps, bad bars, outliers, splits
     quantlab options iron_condor --days 250 --every 5 --hold 14     # synthetic chain demo
     quantlab search bollinger_reversion --data synthetic/bars --study demo --perm 100
-    quantlab registry [--study demo]              # trials, K and the current pass bar
+    quantlab registry [--study demo] [--json]     # trials, K and the current pass bar
+    quantlab strategies [--json]                  # the built-in templates and their grids
     quantlab prereg demo prereg/demo.md           # register a written spec before running
     quantlab vault seal data/vault                # freeze an out-of-sample set
     quantlab sec sync AAPL MSFT --since 2020-01-01
@@ -182,8 +183,23 @@ def cmd_search(a):
     print(f"study '{a.study}': K = {reg.k(a.study)}, bar {reg.bar(a.study):.2f}")
 
 
+def cmd_strategies(a):
+    rows = [{"name": k, "description": s.description, "defaults": s.defaults, "grid": s.grid}
+            for k, s in sorted(REGISTRY.items())]
+    if a.json:
+        print(json.dumps(rows, default=str))
+    else:
+        for r in rows:
+            print(f"{r['name']:22s} {r['description']}  defaults {r['defaults']}")
+
+
 def cmd_registry(a):
     reg = Registry()
+    if a.json:
+        print(json.dumps([{"study": st, "runs": len(reg.trials(st)), "k": reg.k(st), "bar": reg.bar(st),
+                           "preregistered": reg.prereg_for(st) is not None}
+                          for st in ([a.study] if a.study else reg.studies())]))
+        return
     for st in ([a.study] if a.study else reg.studies()):
         t = reg.trials(st)
         print(f"\n== {st}: {len(t)} runs, K = {reg.k(st)} distinct trials, bar |t| >= {reg.bar(st):.2f}"
@@ -298,7 +314,12 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("registry")
     p.add_argument("--study")
+    p.add_argument("--json", action="store_true", help="machine-readable K and bar per study")
     p.set_defaults(fn=cmd_registry)
+
+    p = sub.add_parser("strategies")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_strategies)
 
     p = sub.add_parser("prereg")
     p.add_argument("study")

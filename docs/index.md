@@ -1,6 +1,6 @@
 # quantlab
 
-**A research platform for honest backtests.**
+**Backtests that can't lie to you.**
 
 Most backtests overstate their results for three reasons: the strategy quietly uses future data,
 the fills are better than the market would have given, and nobody counts how many variants were
@@ -22,6 +22,7 @@ covers the rest of the workflow: data, strategy authoring, validation, reporting
 | **Asset classes** | Crypto perps with funding, equities, continuous futures, multi-leg options on bid/ask chains, event studies |
 | **Data** | A Parquet lake with a DuckDB catalog; Binance, Yahoo, CCXT, FRED and SEC EDGAR sources; CSV/Parquet import with column detection; quality checks |
 | **Reporting** | Metrics, benchmark statistics, a standalone HTML tearsheet, saved runs with code version and data fingerprint |
+| **Live console** | A Node.js + TypeScript service (Fastify, WebSockets, DuckDB in-process) and React front end that streams every trial, run and job heartbeat to the browser and launches backtests; held to the Python numbers by a cross-language contract test |
 | **Operations** | A Streamlit dashboard, a CLI, heartbeats and freshness checks that exit non-zero for alerting, example systemd units, CI |
 
 ## Where to start
@@ -29,3 +30,4 @@ covers the rest of the workflow: data, strategy authoring, validation, reporting
 - [Getting started](getting-started.md): install, load data, run your first backtest in five minutes.
 - [Methodology](concepts/methodology.md): why each control exists and what it protects against.
 - [No-code strategies](guides/rules.md): write strategies as sentences.
+- [Live console](guides/console.md): watch the platform in real time, from Node.js.
